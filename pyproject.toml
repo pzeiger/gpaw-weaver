@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpaw-weaver"
+version = "0.1.0"
+description = "Small helpers for running and organizing GPAW calculations."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+  { name = "Paul Zeiger", email = "pmz.research@pm.me" }
+]
+keywords = ["gpaw", "ase", "dft", "materials-science", "workflows"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Scientific/Engineering :: Physics"
+]
+dependencies = [
+  "ase",
+  "gpaw"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff",
+  "build",
+  "twine"
+]
+
+[project.urls]
+Homepage = "https://github.com/pzeiger/gpaw-weaver"
+Repository = "https://github.com/pzeiger/gpaw-weaver"
+Issues = "https://github.com/pzeiger/gpaw-weaver/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 88
