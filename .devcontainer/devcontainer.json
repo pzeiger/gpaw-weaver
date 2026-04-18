@@ -10,7 +10,7 @@
     "workspaceFolder": "/workspace",
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
 
-    "postCreateCommand": "ls ./ && pip install -vv --no-cache-dir gpaw && pip install -e .",
+    "postCreateCommand": "ls ./ && GPAW_CONFIG=/workspace/.devcontainer/siteconfig.py GPAW_BUILD_GPU=0 pip install -vv --no-cache-dir gpaw && pip install -e .",
     "postStartCommand": "gpaw test && gpaw -P 4 test && rm test.txt && bash",
 
     "forwardPorts": [
@@ -50,10 +50,8 @@
     ],
 
     "containerEnv": {
-        "GPAW_CONFIG": "/workspace/.devcontainer/siteconfig.py",
         "GPAW_NEW": "0",
         "GPAW_USE_GPUS": "0",
-        "GPAW_BUILD_GPU": "0",
         "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}",
         "CLAUDE_CONFIG_DIR": "/workspace/.claude"
     }
