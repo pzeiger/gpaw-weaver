@@ -1,0 +1,61 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
+{
+    "name": "Ubuntu Dev Container",
+
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+
+    "workspaceFolder": "/workspace",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+
+    "postCreateCommand": "ls ./ && pip install -vv --no-cache-dir gpaw && pip install -e .",
+    "postStartCommand": "gpaw test && gpaw -P 4 test && rm test.txt && bash",
+
+    "forwardPorts": [
+        8888
+    ],
+
+    // Configure tool-specific properties.
+    "customizations": {
+        // Configure properties specific to VS Code.
+        "vscode": {
+            "settings": {
+                "terminal.integrated.cwd": "/workspace"
+            },
+            // Add the IDs of extensions you want installed when the container is created.
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "anthropic.claude-code",
+                "ms-python.pylint",
+                "eamodio.gitlens",
+                "usernamehw.errorlens",
+                "ms-azuretools.vscode-docker"
+            ]
+        }
+    },
+
+    "runArgs": [
+	"--cap-add=SYS_PTRACE",
+        "--security-opt",
+        "seccomp=unconfined",
+        "--device=/dev/kfd",
+        "--device=/dev/dri",
+        "--group-add=video",
+        "--ipc=host",
+        "--shm-size",
+        "8G"
+    ],
+
+    "containerEnv": {
+        "GPAW_CONFIG": "/workspace/.devcontainer/siteconfig.py",
+        "GPAW_NEW": "0",
+        "GPAW_USE_GPUS": "0",
+        "GPAW_BUILD_GPU": "0",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}",
+        "CLAUDE_CONFIG_DIR": "/workspace/.claude"
+    }
+
+}
