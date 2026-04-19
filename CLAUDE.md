@@ -18,28 +18,33 @@ All public symbols are importable flat: `from gpaw_weaver import make_pw_params`
 ### Function signatures
 
 ```python
-run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
-                               db=None, save_gpw=False, save_gpw_mode='calculation',
+run_and_store_gpaw_calculation(atoms_initial, calc_params,
+                               db=None, label=None,
+                               save_gpw=False, save_gpw_mode='calculation',
                                legacy_gpaw=True, gpw_dir=..., gpw_logs=...)
 
-load_gpaw_calculation(atoms_initial, system,
+load_gpaw_calculation(atoms_initial,
                       db=None, calc_params=None, legacy_gpaw=None, gpw_logs=...)
 ```
 
-- `system` is a **required positional argument** to both functions.
-- `atoms_initial` is also required in `load_gpaw_calculation` — its hash is used to identify the stored entry (see below).
+- Both `atoms_initial` and `calc_params` are required positional arguments for `run_and_store_gpaw_calculation`.
+- `atoms_initial` is required in `load_gpaw_calculation` — it is hashed to identify the stored entry.
+- `label` is optional in both functions. It is stored in the DB for human readability but is **not** used as a query filter.
 
 ### Database (`db`)
 
 - `db` is an **optional keyword argument** accepting an ASE `Database` object, a `str`/`Path` file path (auto-connected), or `None` to use `calculations.db` in the working directory.
 - Paths without a file extension are automatically given `.db`.
 
-### Structure identification (`atoms_hash`)
+### Calculation identification (`atoms_hash`, `_calculation_hash`)
 
-Every stored entry carries an `atoms_hash` key-value pair computed by `_atoms_hash(atoms, calc_params)`:
-- SHA-256 over atomic numbers, positions (rounded to 6 d.p.), cell, pbc, and magnetic moments.
-- If `calc_params['magmoms']` is present it takes precedence over `atoms.get_initial_magnetic_moments()` for the magmom contribution — pass the same `calc_params` to `load_gpaw_calculation` to reproduce the hash.
-- This ensures different phases, magnetic configurations (FM vs AFM), and non-collinear states stored under the same `system` label are always distinguished.
+Every stored entry carries an `atoms_hash` key-value pair computed by `_calculation_hash(atoms, calc_params)`:
+- SHA-256 over: atomic numbers, positions (rounded to 6 d.p.), cell, pbc, magnetic moments, and the full serialised `calc_params`.
+- Magnetic moments: if `calc_params['magmoms']` is present it takes precedence over `atoms.get_initial_magnetic_moments()`.
+- Because `calc_params` is included in the hash, different structures, phases, magnetic configurations (FM vs AFM, collinear vs non-collinear), and calculation settings (XC functional, k-points, …) all produce distinct hashes automatically.
+- `calc_params` must be passed to `load_gpaw_calculation` to reproduce the correct hash. Omitting it hashes only the atomic structure and atoms magmoms.
+
+`load_gpaw_calculation` raises `LookupError` when no match is found and `ValueError` when more than one converged row matches — narrow with `legacy_gpaw` or store distinct entries under different `label` values.
 
 ### GPAW implementation dispatch (`legacy_gpaw`)
 
@@ -51,14 +56,13 @@ Every stored entry carries an `atoms_hash` key-value pair computed by `_atoms_ha
 
 ### ASE reserved keys
 
-`_safe_db_key` prefixes any `calc_params` key that clashes with ASE reserved database column names (e.g. `magmoms`) with `gpaw_` before storage and querying. Both run and load go through `_serialize_calc_params`, so the renamed key is consistent on both sides.
+`_safe_db_key` prefixes any `calc_params` key that clashes with ASE reserved database column names (e.g. `magmoms`) with `gpaw_` before storage. Both run and load go through `_serialize_calc_params`, so the renamed key is consistent on both sides.
 
 ### Other conventions
 
 - `gpw_dir` and `gpw_logs` are optional `Path` parameters defaulting to `gpw_files/` and `gpw_logs/` relative to the working directory.
 - Log files and GPW files are named after the **converged** DB row ID (not the initial one). The initial-ID log is renamed once the converged entry is written.
 - `_serialize_calc_params` converts non-primitive values to JSON strings with `sort_keys=True` so DB key-value pairs are always consistent and queryable.
-- `load_gpaw_calculation` raises `LookupError` when no match is found and `ValueError` when more than one converged row matches — narrow with `legacy_gpaw` or a more specific `system` label.
 
 ## Testing
 

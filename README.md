@@ -4,7 +4,7 @@ Small helpers for running and organizing [GPAW](https://gpaw.readthedocs.io) cal
 
 - Build typed parameter dicts for plane-wave and finite-difference calculations
 - Run a GPAW calculation and store the initial geometry, converged geometry, and full SCF history in an ASE database in one call
-- Reload a stored calculation (atoms + calculator) from the database
+- Reload a stored calculation (atoms + calculator) from the database by passing the same atoms and parameters — no manual ID tracking required
 
 ## Requirements
 
@@ -63,7 +63,6 @@ params = make_pw_params(500, kpts, nbands=40, charge=0, setups={"Fe": ":d,4.0"})
 
 ```python
 from ase import Atoms
-from ase.db import connect
 from gpaw_weaver import make_pw_params, run_and_store_gpaw_calculation
 
 atoms = Atoms("Fe2", positions=[(0, 0, 0), (1.435, 1.435, 1.435)],
@@ -73,17 +72,17 @@ atoms.set_initial_magnetic_moments([2.2, 2.2])
 params = make_pw_params(500, {"size": (8, 8, 8), "gamma": True},
                         convergence={"density": 1e-6})
 
-db = connect("calculations.db")
-
 atoms_converged, initial_id, converged_id = run_and_store_gpaw_calculation(
-    atoms, params, system="bcc-Fe", db=db,
-    save_gpw=True,          # write a .gpw restart file
-    legacy_gpaw=True,       # False for the new GPAW implementation
+    atoms, params,
+    db="calculations.db",    # str/Path auto-connected; None → calculations.db in cwd
+    label="bcc-Fe",          # optional, stored for readability but not used for lookup
+    save_gpw=True,           # write a .gpw restart file
+    legacy_gpaw=False,       # True for the old GPAW implementation
 )
 ```
 
 This writes two rows to the database:
-- **initial** — starting geometry plus all calculation parameters
+- **initial** — starting geometry plus all calculation parameters as key-value pairs
 - **converged** — relaxed geometry plus full SCF history (`scf_energies`, `scf_log10_eigst`, `scf_log10_dens`, `scf_magmoms`)
 
 The initial row gains a `converged_id` pointer and the converged row gains an `initial_id` pointer so the pair is always findable from either end.
@@ -92,14 +91,38 @@ Log files are written to `gpw_logs/<id>.txt` and restart files to `gpw_files/<id
 
 ### Loading a stored calculation
 
+Pass the same `atoms` and `params` that were used to run the calculation:
+
 ```python
 from gpaw_weaver import load_gpaw_calculation
 
 atoms, calc = load_gpaw_calculation(
-    params,               # calc_params used when the calculation was run
-    db,
-    system="bcc-Fe",
+    atoms,                   # initial atoms object used when running
+    db="calculations.db",
+    calc_params=params,      # must match the params used at run time
 )
+```
+
+Identification is hash-based: gpaw-weaver computes a SHA-256 digest over the atomic structure (numbers, positions, cell, pbc), magnetic moments, and all serialised `calc_params`. This means:
+
+- **Different structures or phases** of the same element are automatically distinguished, even if stored under the same `label`.
+- **Different magnetic configurations** (FM vs AFM, collinear vs non-collinear) produce distinct hashes.
+- **Different calculation settings** (XC functional, k-points, cutoff, …) also produce distinct hashes, so multiple calculations on the same atoms are always unambiguous.
+
+If more than one converged row matches the hash, a `ValueError` is raised. Narrow the search with `legacy_gpaw=True/False` or re-run with a more specific `label`.
+
+#### Non-collinear magnetism
+
+Non-collinear calculations (3-vector magnetic moments, spin-orbit coupling) require the new GPAW implementation (`legacy_gpaw=False`). Pass `magmoms` as a list of 3-vectors either on the atoms object or directly in `calc_params`:
+
+```python
+params["magmoms"] = [[0, 0, 2.2], [0, 0, -2.2]]  # AFM along z
+
+run_and_store_gpaw_calculation(atoms, params, db="calculations.db",
+                               legacy_gpaw=False, save_gpw=True)
+
+atoms, calc = load_gpaw_calculation(atoms, db="calculations.db",
+                                    calc_params=params)
 ```
 
 ### Querying the database
@@ -108,11 +131,11 @@ The database is a standard ASE SQLite database and can be queried with the usual
 
 ```bash
 ase db calculations.db
-ase db calculations.db system=bcc-Fe
+ase db calculations.db label=bcc-Fe
 ```
 
 ```python
-for row in db.select(system="bcc-Fe"):
+for row in db.select(label="bcc-Fe"):
     print(row.id, row.energy, row.data["scf_energies"])
 ```
 
