@@ -146,3 +146,52 @@ def test_load_calculation_roundtrip(fe_atom, pw_params, db, work_dirs, legacy_gp
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == converged_id
     assert atoms_loaded.get_chemical_symbols() == ["Fe"]
     assert atoms_loaded.cell.lengths() == pytest.approx([2.87, 2.87, 2.87])
+
+
+# ---------------------------------------------------------------------------
+# _resolve_db tests
+# ---------------------------------------------------------------------------
+
+def test_db_accepts_path(fe_atom, pw_params, work_dirs, tmp_path):
+    """Passing a Path connects automatically to that file."""
+    gpw_dir, gpw_logs = work_dirs
+    db_path = tmp_path / "custom.db"
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        _, _, converged_id = run_and_store_gpaw_calculation(
+            fe_atom, pw_params, system="Fe", db=db_path,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    assert db_path.exists()
+    from ase.db import connect
+    assert connect(str(db_path)).get(id=converged_id) is not None
+
+
+def test_db_accepts_str(fe_atom, pw_params, work_dirs, tmp_path):
+    """Passing a str path connects automatically to that file."""
+    gpw_dir, gpw_logs = work_dirs
+    db_path = str(tmp_path / "custom.db")
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        _, _, converged_id = run_and_store_gpaw_calculation(
+            fe_atom, pw_params, system="Fe", db=db_path,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    from ase.db import connect
+    assert connect(db_path).get(id=converged_id) is not None
+
+
+def test_db_default(fe_atom, pw_params, work_dirs, tmp_path, monkeypatch):
+    """Omitting db writes to calculations.db in the working directory."""
+    monkeypatch.chdir(tmp_path)
+    gpw_dir, gpw_logs = work_dirs
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        run_and_store_gpaw_calculation(
+            fe_atom, pw_params, system="Fe",
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    assert (tmp_path / "calculations.db").exists()

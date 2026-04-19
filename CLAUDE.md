@@ -15,7 +15,7 @@ All public symbols are importable flat: `from gpaw_weaver import make_pw_params`
 
 ## Important conventions
 
-- **`db` is a required positional argument** to both `run_and_store_gpaw_calculation` and `load_gpaw_calculation`. There is no module-level DB connection — the caller connects and passes it in.
+- **`db` is an optional keyword argument** to both `run_and_store_gpaw_calculation` and `load_gpaw_calculation`. It accepts an ASE `Database` object, a `str`/`Path` file path (auto-connected), or `None` to use `calculations.db` in the working directory.
 - `gpw_dir` and `gpw_logs` are optional `Path` parameters defaulting to `gpw_files/` and `gpw_logs/` relative to the working directory.
 - `legacy_gpaw` (bool) selects the old vs. new GPAW implementation. It is stored in the database so `load_gpaw_calculation` can reload with the same implementation.
 - Log files and GPW files are named after the **converged** DB row ID (not the initial one). The initial-ID log is renamed once the converged entry is written.

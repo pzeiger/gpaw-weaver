@@ -11,6 +11,7 @@ _NEW_GPAW_PARAMS = set(inspect.signature(_NewGPAW).parameters)
 
 _DEFAULT_GPW_DIR = Path('gpw_files')
 _DEFAULT_GPW_LOGS = Path('gpw_logs')
+_DEFAULT_DB = Path('calculations.db')
 
 try:
     from ase.db.core import reserved_keys as _ase_reserved_keys
@@ -22,6 +23,15 @@ except ImportError:
         'masses', 'tags', 'momenta', 'constraints', 'calculator',
         'calculator_parameters', 'initial_magmoms', 'initial_charges',
     }
+
+
+def _resolve_db(db):
+    import ase.db
+    if db is None:
+        return ase.db.connect(str(_DEFAULT_DB))
+    if isinstance(db, (str, Path)):
+        return ase.db.connect(str(db))
+    return db
 
 
 def _safe_db_key(key):
@@ -42,7 +52,8 @@ def _serialize_calc_params(calc_params):
     return out
 
 
-def run_and_store_gpaw_calculation(atoms_initial, calc_params, system, db,
+def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
+                                   db=None,
                                    save_gpw=False,
                                    save_gpw_mode='calculation',
                                    legacy_gpaw=True,
@@ -71,8 +82,11 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system, db,
         Every key is serialised and stored in the database.
     system : str
         Human-readable label stored alongside the calculation.
-    db : ase.db.core.Database
-        ASE database connection.
+    db : ase.db.core.Database or str or Path or None
+        Database to write results into.  Accepts an already-connected ASE
+        database object, a file path (str or Path) to connect to, or
+        ``None`` to use the default ``calculations.db`` in the working
+        directory.
     save_gpw : bool
         Whether to write a ``.gpw`` restart file (default False).
     save_gpw_mode : str
@@ -96,6 +110,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system, db,
     converged_id : int
         Database row ID of the converged structure entry.
     """
+    db = _resolve_db(db)
     db_params = _serialize_calc_params(calc_params)
     db_params['legacy_gpaw'] = legacy_gpaw
 
@@ -155,7 +170,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system, db,
     return atoms, initial_id, converged_id
 
 
-def load_gpaw_calculation(selector, db, system=None, legacy_gpaw=None,
+def load_gpaw_calculation(selector, db=None, system=None, legacy_gpaw=None,
                           gpw_logs=_DEFAULT_GPW_LOGS):
     """Load a previously stored calculation from the ASE database.
 
@@ -164,8 +179,10 @@ def load_gpaw_calculation(selector, db, system=None, legacy_gpaw=None,
     selector : dict
         calc_params dict (or subset) used to identify the calculation.
         Serialised the same way as in ``run_and_store_gpaw_calculation``.
-    db : ase.db.core.Database
-        ASE database connection.
+    db : ase.db.core.Database or str or Path or None
+        Database to search.  Accepts an already-connected ASE database
+        object, a file path (str or Path) to connect to, or ``None`` to
+        use the default ``calculations.db`` in the working directory.
     system : str, optional
         System label to narrow the search.
     legacy_gpaw : bool or None
@@ -182,6 +199,7 @@ def load_gpaw_calculation(selector, db, system=None, legacy_gpaw=None,
     calc : GPAW
         Calculator loaded from the GPW file.
     """
+    db = _resolve_db(db)
     initial_id = None
     converged_id = None
     atoms_converged = None
