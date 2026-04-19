@@ -61,8 +61,8 @@ def _assert_common(atoms, initial_id, converged_id, db, gpw_logs, legacy_gpaw):
     assert len(data["scf_log10_eigst"]) == 3
     assert len(data["scf_log10_dens"]) == 3
 
-    assert (gpw_logs / f"{converged_id}.txt").exists()
-    assert not (gpw_logs / f"{initial_id}.txt").exists()
+    calc_hash = conv_row.key_value_pairs["atoms_hash"]
+    assert (gpw_logs / f"{calc_hash}.txt").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -116,9 +116,11 @@ def test_save_gpw_writes_file_and_updates_db(fe_atom, pw_params, db, work_dirs, 
         fe_atom, pw_params, db, work_dirs,
         n_spins=1, magmom_str=None, legacy_gpaw=legacy_gpaw, save_gpw=True,
     )
-    expected_gpw = gpw_dir / f"{converged_id}.gpw"
+    conv_row = db.get(id=converged_id)
+    calc_hash = conv_row.key_value_pairs["atoms_hash"]
+    expected_gpw = gpw_dir / f"{calc_hash}.gpw"
     assert expected_gpw.exists()
-    assert db.get(id=converged_id).key_value_pairs["gpw_file"] == str(expected_gpw)
+    assert conv_row.key_value_pairs["gpw_file"] == str(expected_gpw)
 
 
 @LEGACY

@@ -98,15 +98,14 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
                                    gpw_logs=_DEFAULT_GPW_LOGS):
     """Run a GPAW calculation and store results in the ASE database.
 
-    Log and GPW files are named after the database row IDs of the stored
-    entries so they are always uniquely identifiable:
+    Log and GPW files are named after the calculation hash so they are
+    uniquely identifiable without requiring a database row ID:
 
-    * Log  → ``<gpw_logs>/<converged_id>.txt``
-    * GPW  → ``<gpw_dir>/<converged_id>.gpw``
+    * Log  → ``<gpw_logs>/<hash>.txt``
+    * GPW  → ``<gpw_dir>/<hash>.gpw``
 
-    The initial DB entry is written *before* the calculation so its ID can
-    be used for the log file during the run; the log is then renamed to the
-    converged ID once that entry is written.
+    Database entries are written only after the calculation converges
+    successfully, so a failed run leaves no partial entries in the database.
 
     Parameters
     ----------
@@ -152,12 +151,10 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
     db_params['legacy_gpaw'] = legacy_gpaw
     if label is not None:
         db_params['label'] = label
-    db_params['atoms_hash'] = _calculation_hash(atoms_initial, calc_params)
+    calc_hash = _calculation_hash(atoms_initial, calc_params)
+    db_params['atoms_hash'] = calc_hash
 
-    # Write initial structure first so we have a DB ID for naming the log file.
-    initial_id = db.write(atoms_initial, **db_params)
-
-    log_path = Path(gpw_logs) / f'{initial_id}.txt'
+    log_path = Path(gpw_logs) / f'{calc_hash}.txt'
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     atoms = atoms_initial.copy()
@@ -180,6 +177,9 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
 
     convergence_data = extract_scf_convergence(log_path)
 
+    # Write DB entries only after successful convergence.
+    initial_id = db.write(atoms_initial, **db_params)
+
     data = {
         'initial_id': initial_id,
         'data': {
@@ -194,11 +194,8 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
 
     converged_id = db.write(atoms, **data)
 
-    # Rename log from initial_id → converged_id now that both are known.
-    log_path.rename(Path(gpw_logs) / f'{converged_id}.txt')
-
     if save_gpw:
-        gpw_file = Path(gpw_dir) / f'{converged_id}.gpw'
+        gpw_file = Path(gpw_dir) / f'{calc_hash}.gpw'
         gpw_file.parent.mkdir(parents=True, exist_ok=True)
         calc.write(str(gpw_file), mode=save_gpw_mode)
         db.update(converged_id, gpw_file=str(gpw_file))
