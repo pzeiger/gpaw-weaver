@@ -169,6 +169,30 @@ def test_load_distinguishes_different_structures(pw_params, db, work_dirs):
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == bcc_id
 
 
+def test_load_distinguishes_magnetic_configurations(pw_params, db, work_dirs):
+    """FM and AFM configurations of the same structure are loaded independently."""
+    from ase import Atoms
+    gpw_dir, gpw_logs = work_dirs
+    fm  = Atoms("Fe2", positions=[(0,0,0),(1.435,1.435,1.435)],
+                cell=[2.87, 2.87, 2.87], pbc=True)
+    afm = fm.copy()
+    fm.set_initial_magnetic_moments([2.0, 2.0])
+    afm.set_initial_magnetic_moments([2.0, -2.0])
+    FakeGPAW = make_fake_gpaw_class(n_spins=2, log_content=make_log(n_iters=3, magmom="+2.0000"))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        _, _, fm_id = run_and_store_gpaw_calculation(
+            fm, pw_params, "Fe2", db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        run_and_store_gpaw_calculation(
+            afm, pw_params, "Fe2", db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        atoms_loaded, _ = load_gpaw_calculation(fm, "Fe2", db=db, gpw_logs=gpw_logs)
+    assert atoms_loaded.info["key_value_pairs"]["db_id"] == fm_id
+
+
 def test_load_raises_on_ambiguous_match(fe_atom, pw_params, db, work_dirs):
     """load_gpaw_calculation raises ValueError when multiple rows match."""
     gpw_dir, gpw_logs = work_dirs

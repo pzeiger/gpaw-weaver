@@ -40,6 +40,7 @@ def _atoms_hash(atoms):
     h.update(np.round(atoms.positions, decimals=6).tobytes())
     h.update(np.round(atoms.cell[:], decimals=6).tobytes())
     h.update(atoms.pbc.tobytes())
+    h.update(np.round(atoms.get_initial_magnetic_moments(), decimals=6).tobytes())
     return h.hexdigest()
 
 
