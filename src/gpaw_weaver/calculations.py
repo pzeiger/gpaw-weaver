@@ -80,8 +80,9 @@ def _serialize_calc_params(calc_params):
     return out
 
 
-def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
+def run_and_store_gpaw_calculation(atoms_initial, calc_params,
                                    db=None,
+                                   label=None,
                                    save_gpw=False,
                                    save_gpw_mode='calculation',
                                    legacy_gpaw=True,
@@ -113,8 +114,8 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
         database object, a file path (str or Path) to connect to, or
         ``None`` to use the default ``calculations.db`` in the working
         directory.
-    system : str
-        Human-readable label stored alongside the calculation.
+    label : str or None
+        Optional human-readable label stored alongside the calculation.
     save_gpw : bool
         Whether to write a ``.gpw`` restart file (default False).
     save_gpw_mode : str
@@ -141,7 +142,8 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
     db = _resolve_db(db)
     db_params = _serialize_calc_params(calc_params)
     db_params['legacy_gpaw'] = legacy_gpaw
-    db_params['system'] = system
+    if label is not None:
+        db_params['label'] = label
     db_params['atoms_hash'] = _atoms_hash(atoms_initial, calc_params)
 
     # Write initial structure first so we have a DB ID for naming the log file.
@@ -199,7 +201,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
     return atoms, initial_id, converged_id
 
 
-def load_gpaw_calculation(atoms_initial, system, db=None, calc_params=None,
+def load_gpaw_calculation(atoms_initial, db=None, calc_params=None,
                           legacy_gpaw=None, gpw_logs=_DEFAULT_GPW_LOGS):
     """Load a previously stored calculation from the ASE database.
 
@@ -209,8 +211,6 @@ def load_gpaw_calculation(atoms_initial, system, db=None, calc_params=None,
         The initial structure passed to ``run_and_store_gpaw_calculation``.
         Its hash is used to identify the matching database entry, so
         different phases of the same element are distinguished correctly.
-    system : str
-        System label to narrow the search.
     db : ase.db.core.Database or str or Path or None
         Database to search.  Accepts an already-connected ASE database
         object, a file path (str or Path) to connect to, or ``None`` to
@@ -236,7 +236,8 @@ def load_gpaw_calculation(atoms_initial, system, db=None, calc_params=None,
     """
     db = _resolve_db(db)
 
-    extra = {'system': system, 'atoms_hash': _atoms_hash(atoms_initial, calc_params)}
+    atoms_hash = _atoms_hash(atoms_initial, calc_params)
+    extra = {'atoms_hash': atoms_hash}
     if legacy_gpaw is not None:
         extra['legacy_gpaw'] = legacy_gpaw
     rows = list(db.select(**extra))
@@ -247,13 +248,12 @@ def load_gpaw_calculation(atoms_initial, system, db=None, calc_params=None,
     if len(converged_rows) > 1:
         raise ValueError(
             f'{len(converged_rows)} converged rows match '
-            f'system={system!r}, atoms_hash={extra["atoms_hash"]!r}. '
-            'Narrow the search with legacy_gpaw or a more specific system label.'
+            f'atoms_hash={atoms_hash!r}. '
+            'Narrow the search with legacy_gpaw or a label stored on the entries.'
         )
     if not converged_rows:
         raise LookupError(
-            f'No calculation found in DB for system={system!r}, '
-            f'atoms_hash={extra["atoms_hash"]!r}'
+            f'No calculation found in DB for atoms_hash={atoms_hash!r}'
         )
 
     converged_row = converged_rows[0]

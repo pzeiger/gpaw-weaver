@@ -37,7 +37,7 @@ def _run(fe_atom, pw_params, db, work_dirs, *, n_spins, magmom_str, legacy_gpaw,
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         return run_and_store_gpaw_calculation(
-            fe_atom, pw_params, system="Fe", db=db,
+            fe_atom, pw_params, db=db,
             legacy_gpaw=legacy_gpaw, save_gpw=save_gpw,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
@@ -53,7 +53,6 @@ def _assert_common(atoms, initial_id, converged_id, db, gpw_logs, legacy_gpaw):
 
     conv_row = db.get(id=converged_id)
     assert conv_row.key_value_pairs["initial_id"] == initial_id
-    assert conv_row.key_value_pairs["system"] == "Fe"
     assert conv_row.key_value_pairs["legacy_gpaw"] == legacy_gpaw
 
     data = conv_row.data
@@ -133,12 +132,12 @@ def test_load_calculation_roundtrip(fe_atom, pw_params, db, work_dirs, legacy_gp
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         _, _, converged_id = run_and_store_gpaw_calculation(
-            fe_atom, pw_params, system="Fe", db=db,
+            fe_atom, pw_params, db=db,
             legacy_gpaw=legacy_gpaw, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         atoms_loaded, calc_loaded = load_gpaw_calculation(
-            fe_atom, "Fe", db=db, gpw_logs=gpw_logs,
+            fe_atom, db=db, gpw_logs=gpw_logs,
         )
 
     assert atoms_loaded is not None
@@ -158,14 +157,14 @@ def test_load_distinguishes_different_structures(pw_params, db, work_dirs):
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         _, _, bcc_id = run_and_store_gpaw_calculation(
-            bcc, pw_params, "Fe", db=db, save_gpw=True,
+            bcc, pw_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         run_and_store_gpaw_calculation(
-            fcc, pw_params, "Fe", db=db, save_gpw=True,
+            fcc, pw_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
-        atoms_loaded, _ = load_gpaw_calculation(bcc, "Fe", db=db, gpw_logs=gpw_logs)
+        atoms_loaded, _ = load_gpaw_calculation(bcc, db=db, gpw_logs=gpw_logs)
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == bcc_id
 
 
@@ -182,14 +181,14 @@ def test_load_distinguishes_magnetic_configurations(pw_params, db, work_dirs):
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         _, _, fm_id = run_and_store_gpaw_calculation(
-            fm, pw_params, "Fe2", db=db, save_gpw=True,
+            fm, pw_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         run_and_store_gpaw_calculation(
-            afm, pw_params, "Fe2", db=db, save_gpw=True,
+            afm, pw_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
-        atoms_loaded, _ = load_gpaw_calculation(fm, "Fe2", db=db, gpw_logs=gpw_logs)
+        atoms_loaded, _ = load_gpaw_calculation(fm, db=db, gpw_logs=gpw_logs)
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == fm_id
 
 
@@ -205,15 +204,15 @@ def test_load_distinguishes_calc_params_magmoms(pw_params, db, work_dirs):
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         _, _, fm_id = run_and_store_gpaw_calculation(
-            base, fm_params, "Fe2", db=db, save_gpw=True,
+            base, fm_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         run_and_store_gpaw_calculation(
-            base, afm_params, "Fe2", db=db, save_gpw=True,
+            base, afm_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         atoms_loaded, _ = load_gpaw_calculation(
-            base, "Fe2", db=db, calc_params=fm_params, gpw_logs=gpw_logs,
+            base, db=db, calc_params=fm_params, gpw_logs=gpw_logs,
         )
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == fm_id
 
@@ -225,15 +224,15 @@ def test_load_raises_on_ambiguous_match(fe_atom, pw_params, db, work_dirs):
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         run_and_store_gpaw_calculation(
-            fe_atom, pw_params, "Fe", db=db, save_gpw=True,
+            fe_atom, pw_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         run_and_store_gpaw_calculation(
-            fe_atom, pw_params, "Fe", db=db, save_gpw=True,
+            fe_atom, pw_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         with pytest.raises(ValueError, match="2 converged rows match"):
-            load_gpaw_calculation(fe_atom, "Fe", db=db, gpw_logs=gpw_logs)
+            load_gpaw_calculation(fe_atom, db=db, gpw_logs=gpw_logs)
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +247,7 @@ def test_db_accepts_path(fe_atom, pw_params, work_dirs, tmp_path):
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         _, _, converged_id = run_and_store_gpaw_calculation(
-            fe_atom, pw_params, system="Fe", db=db_path,
+            fe_atom, pw_params, db=db_path,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
     assert db_path.exists()
@@ -264,7 +263,7 @@ def test_db_accepts_str(fe_atom, pw_params, work_dirs, tmp_path):
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         _, _, converged_id = run_and_store_gpaw_calculation(
-            fe_atom, pw_params, system="Fe", db=db_path,
+            fe_atom, pw_params, db=db_path,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
     from ase.db import connect
@@ -279,7 +278,7 @@ def test_db_path_no_extension(fe_atom, pw_params, work_dirs, tmp_path):
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         run_and_store_gpaw_calculation(
-            fe_atom, pw_params, system="Fe", db=db_path,
+            fe_atom, pw_params, db=db_path,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
     assert (tmp_path / "myproject.db").exists()
@@ -293,7 +292,7 @@ def test_db_default(fe_atom, pw_params, work_dirs, tmp_path, monkeypatch):
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         run_and_store_gpaw_calculation(
-            fe_atom, pw_params, system="Fe",
+            fe_atom, pw_params,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
     assert (tmp_path / "calculations.db").exists()
