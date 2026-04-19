@@ -138,7 +138,7 @@ def test_load_calculation_roundtrip(fe_atom, pw_params, db, work_dirs, legacy_gp
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         atoms_loaded, calc_loaded = load_gpaw_calculation(
-            pw_params, "Fe", db=db, gpw_logs=gpw_logs,
+            fe_atom, "Fe", db=db, gpw_logs=gpw_logs,
         )
 
     assert atoms_loaded is not None
@@ -146,6 +146,27 @@ def test_load_calculation_roundtrip(fe_atom, pw_params, db, work_dirs, legacy_gp
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == converged_id
     assert atoms_loaded.get_chemical_symbols() == ["Fe"]
     assert atoms_loaded.cell.lengths() == pytest.approx([2.87, 2.87, 2.87])
+
+
+def test_load_distinguishes_different_structures(pw_params, db, work_dirs):
+    """Two different structures stored under the same system are loaded independently."""
+    from ase import Atoms
+    gpw_dir, gpw_logs = work_dirs
+    bcc = Atoms("Fe", positions=[(0, 0, 0)], cell=[2.87, 2.87, 2.87], pbc=True)
+    fcc = Atoms("Fe", positions=[(0, 0, 0)], cell=[3.52, 3.52, 3.52], pbc=True)
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        _, _, bcc_id = run_and_store_gpaw_calculation(
+            bcc, pw_params, "Fe", db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        run_and_store_gpaw_calculation(
+            fcc, pw_params, "Fe", db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        atoms_loaded, _ = load_gpaw_calculation(bcc, "Fe", db=db, gpw_logs=gpw_logs)
+    assert atoms_loaded.info["key_value_pairs"]["db_id"] == bcc_id
 
 
 def test_load_raises_on_ambiguous_match(fe_atom, pw_params, db, work_dirs):
@@ -163,7 +184,7 @@ def test_load_raises_on_ambiguous_match(fe_atom, pw_params, db, work_dirs):
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         with pytest.raises(ValueError, match="2 converged rows match"):
-            load_gpaw_calculation(pw_params, "Fe", db=db, gpw_logs=gpw_logs)
+            load_gpaw_calculation(fe_atom, "Fe", db=db, gpw_logs=gpw_logs)
 
 
 # ---------------------------------------------------------------------------
