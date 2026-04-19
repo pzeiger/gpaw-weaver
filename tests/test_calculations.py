@@ -170,7 +170,7 @@ def test_load_distinguishes_different_structures(pw_params, db, work_dirs):
 
 
 def test_load_distinguishes_magnetic_configurations(pw_params, db, work_dirs):
-    """FM and AFM configurations of the same structure are loaded independently."""
+    """FM and AFM via atoms magmoms are loaded independently."""
     from ase import Atoms
     gpw_dir, gpw_logs = work_dirs
     fm  = Atoms("Fe2", positions=[(0,0,0),(1.435,1.435,1.435)],
@@ -190,6 +190,31 @@ def test_load_distinguishes_magnetic_configurations(pw_params, db, work_dirs):
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         atoms_loaded, _ = load_gpaw_calculation(fm, "Fe2", db=db, gpw_logs=gpw_logs)
+    assert atoms_loaded.info["key_value_pairs"]["db_id"] == fm_id
+
+
+def test_load_distinguishes_calc_params_magmoms(pw_params, db, work_dirs):
+    """FM and AFM specified via calc_params magmoms are loaded independently."""
+    from ase import Atoms
+    gpw_dir, gpw_logs = work_dirs
+    base = Atoms("Fe2", positions=[(0,0,0),(1.435,1.435,1.435)],
+                 cell=[2.87, 2.87, 2.87], pbc=True)
+    fm_params  = {**pw_params, 'magmoms': [2.0,  2.0]}
+    afm_params = {**pw_params, 'magmoms': [2.0, -2.0]}
+    FakeGPAW = make_fake_gpaw_class(n_spins=2, log_content=make_log(n_iters=3, magmom="+2.0000"))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        _, _, fm_id = run_and_store_gpaw_calculation(
+            base, fm_params, "Fe2", db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        run_and_store_gpaw_calculation(
+            base, afm_params, "Fe2", db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        atoms_loaded, _ = load_gpaw_calculation(
+            base, "Fe2", db=db, calc_params=fm_params, gpw_logs=gpw_logs,
+        )
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == fm_id
 
 
