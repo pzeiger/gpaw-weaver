@@ -137,7 +137,7 @@ def test_load_calculation_roundtrip(fe_atom, pw_params, db, work_dirs, legacy_gp
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         atoms_loaded, calc_loaded = load_gpaw_calculation(
-            fe_atom, db=db, gpw_logs=gpw_logs,
+            fe_atom, db=db, calc_params=pw_params, gpw_logs=gpw_logs,
         )
 
     assert atoms_loaded is not None
@@ -164,7 +164,7 @@ def test_load_distinguishes_different_structures(pw_params, db, work_dirs):
             fcc, pw_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
-        atoms_loaded, _ = load_gpaw_calculation(bcc, db=db, gpw_logs=gpw_logs)
+        atoms_loaded, _ = load_gpaw_calculation(bcc, db=db, calc_params=pw_params, gpw_logs=gpw_logs)
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == bcc_id
 
 
@@ -188,7 +188,7 @@ def test_load_distinguishes_magnetic_configurations(pw_params, db, work_dirs):
             afm, pw_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
-        atoms_loaded, _ = load_gpaw_calculation(fm, db=db, gpw_logs=gpw_logs)
+        atoms_loaded, _ = load_gpaw_calculation(fm, db=db, calc_params=pw_params, gpw_logs=gpw_logs)
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == fm_id
 
 
@@ -217,6 +217,28 @@ def test_load_distinguishes_calc_params_magmoms(pw_params, db, work_dirs):
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == fm_id
 
 
+def test_load_distinguishes_calc_params(fe_atom, pw_params, db, work_dirs):
+    """Same atoms with different XC functionals are loaded independently."""
+    gpw_dir, gpw_logs = work_dirs
+    pbe_params  = {**pw_params, 'xc': 'PBE'}
+    lda_params  = {**pw_params, 'xc': 'LDA'}
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        _, _, pbe_id = run_and_store_gpaw_calculation(
+            fe_atom, pbe_params, db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        run_and_store_gpaw_calculation(
+            fe_atom, lda_params, db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        atoms_loaded, _ = load_gpaw_calculation(
+            fe_atom, db=db, calc_params=pbe_params, gpw_logs=gpw_logs,
+        )
+    assert atoms_loaded.info["key_value_pairs"]["db_id"] == pbe_id
+
+
 def test_load_raises_on_ambiguous_match(fe_atom, pw_params, db, work_dirs):
     """load_gpaw_calculation raises ValueError when multiple rows match."""
     gpw_dir, gpw_logs = work_dirs
@@ -232,7 +254,7 @@ def test_load_raises_on_ambiguous_match(fe_atom, pw_params, db, work_dirs):
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         with pytest.raises(ValueError, match="2 converged rows match"):
-            load_gpaw_calculation(fe_atom, db=db, gpw_logs=gpw_logs)
+            load_gpaw_calculation(fe_atom, db=db, calc_params=pw_params, gpw_logs=gpw_logs)
 
 
 # ---------------------------------------------------------------------------

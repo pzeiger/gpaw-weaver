@@ -28,14 +28,17 @@ except ImportError:
     }
 
 
-def _atoms_hash(atoms, calc_params=None):
-    """Return a hex digest that uniquely identifies an atomic structure.
+def _calculation_hash(atoms, calc_params=None):
+    """Return a hex digest that uniquely identifies a calculation.
 
     Hashes atomic numbers, positions (rounded to 6 decimal places),
-    cell vectors, periodic boundary conditions, and magnetic moments.
+    cell vectors, periodic boundary conditions, magnetic moments, and
+    the full serialised calc_params so that different structures, magnetic
+    configurations, and calculation settings (XC functional, k-points, …)
+    all produce distinct values.
+
     If calc_params contains a 'magmoms' key it takes precedence over
-    atoms.get_initial_magnetic_moments(), so that different magnetic
-    configurations specified either way produce distinct values.
+    atoms.get_initial_magnetic_moments() for the magnetic moment contribution.
     """
     if calc_params is not None and calc_params.get('magmoms') is not None:
         magmoms = np.asarray(calc_params['magmoms'], dtype=float)
@@ -47,6 +50,11 @@ def _atoms_hash(atoms, calc_params=None):
     h.update(np.round(atoms.cell[:], decimals=6).tobytes())
     h.update(atoms.pbc.tobytes())
     h.update(np.round(magmoms, decimals=6).tobytes())
+    if calc_params is not None:
+        serialized = _serialize_calc_params(calc_params)
+        for key in sorted(serialized):
+            h.update(key.encode())
+            h.update(str(serialized[key]).encode())
     return h.hexdigest()
 
 
@@ -144,7 +152,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
     db_params['legacy_gpaw'] = legacy_gpaw
     if label is not None:
         db_params['label'] = label
-    db_params['atoms_hash'] = _atoms_hash(atoms_initial, calc_params)
+    db_params['atoms_hash'] = _calculation_hash(atoms_initial, calc_params)
 
     # Write initial structure first so we have a DB ID for naming the log file.
     initial_id = db.write(atoms_initial, **db_params)
@@ -216,10 +224,13 @@ def load_gpaw_calculation(atoms_initial, db=None, calc_params=None,
         object, a file path (str or Path) to connect to, or ``None`` to
         use the default ``calculations.db`` in the working directory.
     calc_params : dict or None
-        If the original run specified ``magmoms`` via ``calc_params``,
-        pass the same dict here so the hash is reproduced correctly.
-        When ``None`` (default) the hash uses
-        ``atoms_initial.get_initial_magnetic_moments()``.
+        The same ``calc_params`` dict used in
+        ``run_and_store_gpaw_calculation``.  All keys (XC functional,
+        k-points, magmoms, …) are included in the hash, so passing the
+        correct dict is required to uniquely identify the calculation when
+        multiple runs on the same structure exist.  When ``None`` (default)
+        only the atomic structure and ``atoms_initial.get_initial_magnetic_moments()``
+        contribute to the hash.
     legacy_gpaw : bool or None
         Filter by old (``True``) or new (``False``) GPAW implementation.
         When ``None`` (default) the value stored in the DB is used, defaulting
@@ -236,7 +247,7 @@ def load_gpaw_calculation(atoms_initial, db=None, calc_params=None,
     """
     db = _resolve_db(db)
 
-    atoms_hash = _atoms_hash(atoms_initial, calc_params)
+    atoms_hash = _calculation_hash(atoms_initial, calc_params)
     extra = {'atoms_hash': atoms_hash}
     if legacy_gpaw is not None:
         extra['legacy_gpaw'] = legacy_gpaw
