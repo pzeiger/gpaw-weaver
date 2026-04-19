@@ -30,7 +30,10 @@ def _resolve_db(db):
     if db is None:
         return ase.db.connect(str(_DEFAULT_DB))
     if isinstance(db, (str, Path)):
-        return ase.db.connect(str(db))
+        p = Path(db)
+        if not p.suffix:
+            p = p.with_suffix('.db')
+        return ase.db.connect(str(p))
     return db
 
 

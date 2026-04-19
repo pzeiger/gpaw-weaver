@@ -183,6 +183,20 @@ def test_db_accepts_str(fe_atom, pw_params, work_dirs, tmp_path):
     assert connect(db_path).get(id=converged_id) is not None
 
 
+def test_db_path_no_extension(fe_atom, pw_params, work_dirs, tmp_path):
+    """A path without an extension gets .db appended automatically."""
+    gpw_dir, gpw_logs = work_dirs
+    db_path = tmp_path / "myproject"
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        run_and_store_gpaw_calculation(
+            fe_atom, pw_params, system="Fe", db=db_path,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    assert (tmp_path / "myproject.db").exists()
+
+
 def test_db_default(fe_atom, pw_params, work_dirs, tmp_path, monkeypatch):
     """Omitting db writes to calculations.db in the working directory."""
     monkeypatch.chdir(tmp_path)
