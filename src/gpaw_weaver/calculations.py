@@ -173,7 +173,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
     return atoms, initial_id, converged_id
 
 
-def load_gpaw_calculation(selector, db=None, system=None, legacy_gpaw=None,
+def load_gpaw_calculation(selector, system, db=None, legacy_gpaw=None,
                           gpw_logs=_DEFAULT_GPW_LOGS):
     """Load a previously stored calculation from the ASE database.
 
@@ -182,6 +182,8 @@ def load_gpaw_calculation(selector, db=None, system=None, legacy_gpaw=None,
     selector : dict
         calc_params dict (or subset) used to identify the calculation.
         Serialised the same way as in ``run_and_store_gpaw_calculation``.
+    system : str
+        System label to narrow the search.
     db : ase.db.core.Database or str or Path or None
         Database to search.  Accepts an already-connected ASE database
         object, a file path (str or Path) to connect to, or ``None`` to
