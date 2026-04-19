@@ -55,8 +55,9 @@ def _serialize_calc_params(calc_params):
     return out
 
 
-def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
+def run_and_store_gpaw_calculation(atoms_initial, calc_params,
                                    db=None,
+                                   system=None,
                                    save_gpw=False,
                                    save_gpw_mode='calculation',
                                    legacy_gpaw=True,
@@ -83,13 +84,13 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
         ``make_fd_params`` to build this, then add system-specific settings
         (``nbands``, ``charge``, ``setups``, ``poissonsolver``, …) directly.
         Every key is serialised and stored in the database.
-    system : str
-        Human-readable label stored alongside the calculation.
     db : ase.db.core.Database or str or Path or None
         Database to write results into.  Accepts an already-connected ASE
         database object, a file path (str or Path) to connect to, or
         ``None`` to use the default ``calculations.db`` in the working
         directory.
+    system : str, optional
+        Human-readable label stored alongside the calculation.
     save_gpw : bool
         Whether to write a ``.gpw`` restart file (default False).
     save_gpw_mode : str
@@ -116,9 +117,11 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
     db = _resolve_db(db)
     db_params = _serialize_calc_params(calc_params)
     db_params['legacy_gpaw'] = legacy_gpaw
+    if system is not None:
+        db_params['system'] = system
 
     # Write initial structure first so we have a DB ID for naming the log file.
-    initial_id = db.write(atoms_initial, system=system, **db_params)
+    initial_id = db.write(atoms_initial, **db_params)
 
     log_path = Path(gpw_logs) / f'{initial_id}.txt'
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -144,7 +147,6 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
     convergence_data = extract_scf_convergence(log_path)
 
     data = {
-        'system': system,
         'initial_id': initial_id,
         'data': {
             'scf_iter': [d['iter'] for d in convergence_data],
@@ -173,7 +175,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
     return atoms, initial_id, converged_id
 
 
-def load_gpaw_calculation(selector, system, db=None, legacy_gpaw=None,
+def load_gpaw_calculation(selector, db=None, system=None, legacy_gpaw=None,
                           gpw_logs=_DEFAULT_GPW_LOGS):
     """Load a previously stored calculation from the ASE database.
 
@@ -182,8 +184,6 @@ def load_gpaw_calculation(selector, system, db=None, legacy_gpaw=None,
     selector : dict
         calc_params dict (or subset) used to identify the calculation.
         Serialised the same way as in ``run_and_store_gpaw_calculation``.
-    system : str
-        System label to narrow the search.
     db : ase.db.core.Database or str or Path or None
         Database to search.  Accepts an already-connected ASE database
         object, a file path (str or Path) to connect to, or ``None`` to
@@ -205,31 +205,32 @@ def load_gpaw_calculation(selector, system, db=None, legacy_gpaw=None,
         Calculator loaded from the GPW file.
     """
     db = _resolve_db(db)
-    initial_id = None
-    converged_id = None
-    atoms_converged = None
 
     extra = _serialize_calc_params(selector)
     if system is not None:
         extra['system'] = system
     if legacy_gpaw is not None:
         extra['legacy_gpaw'] = legacy_gpaw
-    rows = db.select(**extra)
+    rows = list(db.select(**extra))
 
-    for row in rows:
-        if 'initial_id' in row.key_value_pairs:
-            assert initial_id is None
-            initial_id = row.initial_id
-            atoms_converged = row.toatoms(add_additional_information=True)
-        if 'converged_id' in row.key_value_pairs:
-            assert converged_id is None
-            converged_id = row.converged_id
+    converged_rows = [r for r in rows if 'initial_id' in r.key_value_pairs]
+    initial_rows = [r for r in rows if 'converged_id' in r.key_value_pairs]
 
-    if atoms_converged is None:
+    if len(converged_rows) > 1:
+        raise ValueError(
+            f'{len(converged_rows)} converged rows match '
+            f'system={system!r}, selector={selector}. '
+            'Narrow the search with additional parameters.'
+        )
+    if not converged_rows:
         raise LookupError(
             f'No calculation found in DB for system={system!r}, '
             f'selector={selector}'
         )
+
+    converged_row = converged_rows[0]
+    atoms_converged = converged_row.toatoms(add_additional_information=True)
+    converged_id = initial_rows[0].converged_id if initial_rows else None
 
     atoms_converged.info['key_value_pairs']['db_id'] = converged_id
 

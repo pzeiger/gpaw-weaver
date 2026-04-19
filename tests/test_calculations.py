@@ -148,6 +148,24 @@ def test_load_calculation_roundtrip(fe_atom, pw_params, db, work_dirs, legacy_gp
     assert atoms_loaded.cell.lengths() == pytest.approx([2.87, 2.87, 2.87])
 
 
+def test_load_raises_on_ambiguous_match(fe_atom, pw_params, db, work_dirs):
+    """load_gpaw_calculation raises ValueError when multiple rows match."""
+    gpw_dir, gpw_logs = work_dirs
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        run_and_store_gpaw_calculation(
+            fe_atom, pw_params, system="Fe_run1", db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        run_and_store_gpaw_calculation(
+            fe_atom, pw_params, system="Fe_run2", db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        with pytest.raises(ValueError, match="2 converged rows match"):
+            load_gpaw_calculation(pw_params, db, gpw_logs=gpw_logs)
+
+
 # ---------------------------------------------------------------------------
 # _resolve_db tests
 # ---------------------------------------------------------------------------
