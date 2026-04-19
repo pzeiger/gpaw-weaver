@@ -206,8 +206,9 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
     return atoms, initial_id, converged_id
 
 
-def load_gpaw_calculation(atoms_initial, db=None, calc_params=None,
-                          legacy_gpaw=None, gpw_logs=_DEFAULT_GPW_LOGS):
+def load_gpaw_calculation(atoms_initial, calc_params,
+                          db=None, legacy_gpaw=None,
+                          gpw_logs=_DEFAULT_GPW_LOGS):
     """Load a previously stored calculation from the ASE database.
 
     Parameters
@@ -216,10 +217,6 @@ def load_gpaw_calculation(atoms_initial, db=None, calc_params=None,
         The initial structure passed to ``run_and_store_gpaw_calculation``.
         Its hash is used to identify the matching database entry, so
         different phases of the same element are distinguished correctly.
-    db : ase.db.core.Database or str or Path or None
-        Database to search.  Accepts an already-connected ASE database
-        object, a file path (str or Path) to connect to, or ``None`` to
-        use the default ``calculations.db`` in the working directory.
     calc_params : dict or None
         The same ``calc_params`` dict used in
         ``run_and_store_gpaw_calculation``.  All keys (XC functional,
@@ -228,6 +225,10 @@ def load_gpaw_calculation(atoms_initial, db=None, calc_params=None,
         multiple runs on the same structure exist.  When ``None`` (default)
         only the atomic structure and ``atoms_initial.get_initial_magnetic_moments()``
         contribute to the hash.
+    db : ase.db.core.Database or str or Path or None
+        Database to search.  Accepts an already-connected ASE database
+        object, a file path (str or Path) to connect to, or ``None`` to
+        use the default ``calculations.db`` in the working directory.
     legacy_gpaw : bool or None
         Filter by old (``True``) or new (``False``) GPAW implementation.
         When ``None`` (default) the value stored in the DB is used, defaulting
