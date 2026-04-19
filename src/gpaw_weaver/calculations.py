@@ -8,17 +8,33 @@ from .log import extract_scf_convergence
 _DEFAULT_GPW_DIR = Path('gpw_files')
 _DEFAULT_GPW_LOGS = Path('gpw_logs')
 
+try:
+    from ase.db.core import reserved_keys as _ase_reserved_keys
+    _ASE_RESERVED = set(_ase_reserved_keys)
+except ImportError:
+    _ASE_RESERVED = {
+        'magmoms', 'magmom', 'charges', 'energy', 'free_energy', 'forces',
+        'stress', 'dipole', 'numbers', 'positions', 'cell', 'pbc',
+        'masses', 'tags', 'momenta', 'constraints', 'calculator',
+        'calculator_parameters', 'initial_magmoms', 'initial_charges',
+    }
+
+
+def _safe_db_key(key):
+    return f'gpaw_{key}' if key in _ASE_RESERVED else key
+
 
 def _serialize_calc_params(calc_params):
     out = {}
     for key, val in calc_params.items():
+        safe_key = _safe_db_key(key)
         if type(val) in (bool, int, float, str):
-            out[key] = val
+            out[safe_key] = val
         else:
             try:
-                out[key] = json.dumps(val, sort_keys=True)
+                out[safe_key] = json.dumps(val, sort_keys=True)
             except Exception:
-                out[key] = json.dumps(val.todict(), sort_keys=True)
+                out[safe_key] = json.dumps(val.todict(), sort_keys=True)
     return out
 
 
