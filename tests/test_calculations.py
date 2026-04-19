@@ -138,7 +138,7 @@ def test_load_calculation_roundtrip(fe_atom, pw_params, db, work_dirs, legacy_gp
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         atoms_loaded, calc_loaded = load_gpaw_calculation(
-            pw_params, db, system="Fe", gpw_logs=gpw_logs,
+            pw_params, "Fe", db=db, gpw_logs=gpw_logs,
         )
 
     assert atoms_loaded is not None
@@ -155,15 +155,15 @@ def test_load_raises_on_ambiguous_match(fe_atom, pw_params, db, work_dirs):
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
          patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         run_and_store_gpaw_calculation(
-            fe_atom, pw_params, system="Fe_run1", db=db, save_gpw=True,
+            fe_atom, pw_params, "Fe", db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         run_and_store_gpaw_calculation(
-            fe_atom, pw_params, system="Fe_run2", db=db, save_gpw=True,
+            fe_atom, pw_params, "Fe", db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         with pytest.raises(ValueError, match="2 converged rows match"):
-            load_gpaw_calculation(pw_params, db, gpw_logs=gpw_logs)
+            load_gpaw_calculation(pw_params, "Fe", db=db, gpw_logs=gpw_logs)
 
 
 # ---------------------------------------------------------------------------

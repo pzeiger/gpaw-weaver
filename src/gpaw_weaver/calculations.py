@@ -55,9 +55,8 @@ def _serialize_calc_params(calc_params):
     return out
 
 
-def run_and_store_gpaw_calculation(atoms_initial, calc_params,
+def run_and_store_gpaw_calculation(atoms_initial, calc_params, system,
                                    db=None,
-                                   system=None,
                                    save_gpw=False,
                                    save_gpw_mode='calculation',
                                    legacy_gpaw=True,
@@ -89,7 +88,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
         database object, a file path (str or Path) to connect to, or
         ``None`` to use the default ``calculations.db`` in the working
         directory.
-    system : str, optional
+    system : str
         Human-readable label stored alongside the calculation.
     save_gpw : bool
         Whether to write a ``.gpw`` restart file (default False).
@@ -117,8 +116,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
     db = _resolve_db(db)
     db_params = _serialize_calc_params(calc_params)
     db_params['legacy_gpaw'] = legacy_gpaw
-    if system is not None:
-        db_params['system'] = system
+    db_params['system'] = system
 
     # Write initial structure first so we have a DB ID for naming the log file.
     initial_id = db.write(atoms_initial, **db_params)
@@ -175,7 +173,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
     return atoms, initial_id, converged_id
 
 
-def load_gpaw_calculation(selector, db=None, system=None, legacy_gpaw=None,
+def load_gpaw_calculation(selector, system, db=None, legacy_gpaw=None,
                           gpw_logs=_DEFAULT_GPW_LOGS):
     """Load a previously stored calculation from the ASE database.
 
@@ -188,7 +186,7 @@ def load_gpaw_calculation(selector, db=None, system=None, legacy_gpaw=None,
         Database to search.  Accepts an already-connected ASE database
         object, a file path (str or Path) to connect to, or ``None`` to
         use the default ``calculations.db`` in the working directory.
-    system : str, optional
+    system : str
         System label to narrow the search.
     legacy_gpaw : bool or None
         Filter by old (``True``) or new (``False``) GPAW implementation.
@@ -207,8 +205,7 @@ def load_gpaw_calculation(selector, db=None, system=None, legacy_gpaw=None,
     db = _resolve_db(db)
 
     extra = _serialize_calc_params(selector)
-    if system is not None:
-        extra['system'] = system
+    extra['system'] = system
     if legacy_gpaw is not None:
         extra['legacy_gpaw'] = legacy_gpaw
     rows = list(db.select(**extra))
