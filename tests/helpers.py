@@ -36,7 +36,7 @@ def make_fake_gpaw_class(n_spins=1, log_content=None):
         default_parameters = {}
         name = "fakegpaw"
 
-        def __init__(self, *args, txt=None, legacy_gpaw=True, **kwargs):
+        def __init__(self, *args, txt=None, **kwargs):
             super().__init__()
             if txt and log_content is not None:
                 Path(txt).parent.mkdir(parents=True, exist_ok=True)

@@ -1,9 +1,13 @@
+import inspect
 import json
 from pathlib import Path
 
-from gpaw import GPAW
+from gpaw.calculator import GPAW
+from gpaw.new.ase_interface import GPAW as _NewGPAW
 
 from .log import extract_scf_convergence
+
+_NEW_GPAW_PARAMS = set(inspect.signature(_NewGPAW).parameters)
 
 _DEFAULT_GPW_DIR = Path('gpw_files')
 _DEFAULT_GPW_LOGS = Path('gpw_logs')
@@ -101,8 +105,18 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params, system, db,
     log_path = Path(gpw_logs) / f'{initial_id}.txt'
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    calc = GPAW(**calc_params, txt=str(log_path), legacy_gpaw=legacy_gpaw)
     atoms = atoms_initial.copy()
+    if legacy_gpaw:
+        gpaw_params = {k: v for k, v in calc_params.items()
+                       if k in GPAW.default_parameters}
+        magmoms = calc_params.get('magmoms')
+        if magmoms is not None:
+            atoms.set_initial_magnetic_moments(magmoms)
+        calc = GPAW(**gpaw_params, txt=str(log_path))
+    else:
+        gpaw_params = {k: v for k, v in calc_params.items()
+                       if k in _NEW_GPAW_PARAMS}
+        calc = _NewGPAW(**gpaw_params, txt=str(log_path))
     atoms.calc = calc
     atoms.get_potential_energy()
     atoms.get_forces()
@@ -213,6 +227,9 @@ def load_gpaw_calculation(selector, db, system=None, legacy_gpaw=None,
     use_legacy = kv.get('legacy_gpaw', True)
 
     log_path = Path(gpw_logs) / f'{Path(gpw_file).stem}.txt'
-    calc = GPAW(str(gpw_file), txt=str(log_path), legacy_gpaw=use_legacy)
+    if use_legacy:
+        calc = GPAW(str(gpw_file), txt=str(log_path))
+    else:
+        calc = _NewGPAW(str(gpw_file), txt=str(log_path))
 
     return atoms_converged, calc

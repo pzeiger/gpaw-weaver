@@ -34,7 +34,8 @@ def _run(fe_atom, pw_params, db, work_dirs, *, n_spins, magmom_str, legacy_gpaw,
         n_spins=n_spins,
         log_content=make_log(n_iters=3, magmom=magmom_str),
     )
-    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW):
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         return run_and_store_gpaw_calculation(
             fe_atom, pw_params, system="Fe", db=db,
             legacy_gpaw=legacy_gpaw, save_gpw=save_gpw,
@@ -129,7 +130,8 @@ def test_load_calculation_roundtrip(fe_atom, pw_params, db, work_dirs, legacy_gp
         n_spins=1,
         log_content=make_log(n_iters=3, magmom=None),
     )
-    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW):
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
         _, _, converged_id = run_and_store_gpaw_calculation(
             fe_atom, pw_params, system="Fe", db=db,
             legacy_gpaw=legacy_gpaw, save_gpw=True,
