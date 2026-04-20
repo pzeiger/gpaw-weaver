@@ -25,11 +25,14 @@ run_and_store_gpaw_calculation(atoms_initial, calc_params,
 
 load_gpaw_calculation(atoms_initial,
                       db=None, calc_params=None, legacy_gpaw=None, gpw_logs=...)
+
+query_gpaw_calculations(atoms_initial, db=None, calc_params=None)
 ```
 
 - Both `atoms_initial` and `calc_params` are required positional arguments for `run_and_store_gpaw_calculation`.
 - `atoms_initial` is required in `load_gpaw_calculation` — it is hashed to identify the stored entry.
 - `label` is optional in both functions. It is stored in the DB for human readability but is **not** used as a query filter.
+- `query_gpaw_calculations` returns a list of all `AtomsRow` objects whose stored structure (numbers, positions, cell, pbc, magmoms) and calc_params are a superset of the supplied values. Keys absent from the supplied `calc_params` are ignored (partial match). Returns both initial and converged rows.
 
 ### Database (`db`)
 
@@ -61,7 +64,8 @@ Every stored entry carries an `atoms_hash` key-value pair computed by `_calculat
 ### Other conventions
 
 - `gpw_dir` and `gpw_logs` are optional `Path` parameters defaulting to `gpw_files/` and `gpw_logs/` relative to the working directory.
-- Log files and GPW files are named after the **converged** DB row ID (not the initial one). The initial-ID log is renamed once the converged entry is written.
+- Log files and GPW files are named after the **calculation hash** (same value stored as `atoms_hash` in the DB): `<gpw_logs>/<hash>.txt` and `<gpw_dir>/<hash>.gpw`. This makes them uniquely identifiable without a DB row ID and avoids any rename step.
+- **DB entries are written only after the calculation converges successfully.** A failed or interrupted run leaves no partial rows in the database.
 - `_serialize_calc_params` converts non-primitive values to JSON strings with `sort_keys=True` so DB key-value pairs are always consistent and queryable.
 
 ## Testing

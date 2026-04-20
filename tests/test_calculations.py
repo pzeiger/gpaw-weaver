@@ -15,7 +15,11 @@ from unittest.mock import patch
 
 import pytest
 
-from gpaw_weaver.calculations import load_gpaw_calculation, run_and_store_gpaw_calculation
+from gpaw_weaver.calculations import (
+    load_gpaw_calculation,
+    query_gpaw_calculations,
+    run_and_store_gpaw_calculation,
+)
 from helpers import make_fake_gpaw_class, make_log
 
 
@@ -306,6 +310,82 @@ def test_db_path_no_extension(fe_atom, pw_params, work_dirs, tmp_path):
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
     assert (tmp_path / "myproject.db").exists()
+
+
+# ---------------------------------------------------------------------------
+# query_gpaw_calculations tests
+# ---------------------------------------------------------------------------
+
+def test_query_returns_all_matching_rows(fe_atom, pw_params, db, work_dirs):
+    """Returns all rows (initial + converged) whose structure and params match."""
+    gpw_dir, gpw_logs = work_dirs
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        run_and_store_gpaw_calculation(
+            fe_atom, pw_params, db=db, gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    rows = query_gpaw_calculations(fe_atom, db=db, calc_params=pw_params)
+    assert len(rows) == 2  # initial + converged
+
+
+def test_query_partial_params_match(fe_atom, pw_params, db, work_dirs):
+    """Partial calc_params matches rows regardless of unspecified params."""
+    from ase import Atoms
+    gpw_dir, gpw_logs = work_dirs
+    pbe_params = {**pw_params, 'xc': 'PBE'}
+    lda_params = {**pw_params, 'xc': 'LDA'}
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        run_and_store_gpaw_calculation(
+            fe_atom, pbe_params, db=db, gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        run_and_store_gpaw_calculation(
+            fe_atom, lda_params, db=db, gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    # Querying with only xc='PBE' should return just the PBE rows
+    rows = query_gpaw_calculations(fe_atom, db=db, calc_params={'xc': 'PBE'})
+    assert len(rows) == 2
+    assert all(r.key_value_pairs.get('xc') == 'PBE' for r in rows)
+
+
+def test_query_excludes_different_structure(pw_params, db, work_dirs):
+    """Rows for a different atoms object are not returned."""
+    from ase import Atoms
+    gpw_dir, gpw_logs = work_dirs
+    bcc = Atoms("Fe", positions=[(0, 0, 0)], cell=[2.87, 2.87, 2.87], pbc=True)
+    fcc = Atoms("Fe", positions=[(0, 0, 0)], cell=[3.52, 3.52, 3.52], pbc=True)
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        run_and_store_gpaw_calculation(
+            bcc, pw_params, db=db, gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        run_and_store_gpaw_calculation(
+            fcc, pw_params, db=db, gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    rows = query_gpaw_calculations(bcc, db=db)
+    assert len(rows) == 2
+    assert all(r.toatoms().cell.lengths()[0] == pytest.approx(2.87) for r in rows)
+
+
+def test_query_no_calc_params_matches_by_structure_only(fe_atom, pw_params, db, work_dirs):
+    """Passing calc_params=None matches all rows for the given structure."""
+    gpw_dir, gpw_logs = work_dirs
+    pbe_params = {**pw_params, 'xc': 'PBE'}
+    lda_params = {**pw_params, 'xc': 'LDA'}
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        run_and_store_gpaw_calculation(
+            fe_atom, pbe_params, db=db, gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        run_and_store_gpaw_calculation(
+            fe_atom, lda_params, db=db, gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    rows = query_gpaw_calculations(fe_atom, db=db, calc_params=None)
+    assert len(rows) == 4  # 2 runs × 2 rows each
 
 
 def test_db_default(fe_atom, pw_params, work_dirs, tmp_path, monkeypatch):

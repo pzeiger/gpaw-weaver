@@ -206,6 +206,63 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
     return atoms, initial_id, converged_id
 
 
+def query_gpaw_calculations(atoms_initial, db=None, calc_params=None):
+    """Return all DB rows whose atoms structure and calc_params match the supplied values.
+
+    Parameters present in *calc_params* must match exactly; parameters stored in
+    the database but absent from *calc_params* are ignored (partial match).
+    The atoms structure (atomic numbers, positions, cell, pbc, and magnetic
+    moments) must also match exactly.
+
+    Parameters
+    ----------
+    atoms_initial : ase.Atoms
+        Reference structure to match against.
+    db : ase.db.core.Database or str or Path or None
+        Database to search.
+    calc_params : dict or None
+        Subset of calculation parameters to filter by.  Only keys present here
+        are required to match.  When ``None`` only the atomic structure is used
+        as a filter.
+
+    Returns
+    -------
+    list of ase.db.row.AtomsRow
+        All rows whose atoms structure and supplied calc_params match.
+    """
+    db = _resolve_db(db)
+
+    extra = _serialize_calc_params(calc_params) if calc_params is not None else {}
+    rows = list(db.select(**extra))
+
+    ref_numbers = atoms_initial.numbers
+    ref_positions = np.round(atoms_initial.positions, decimals=6)
+    ref_cell = np.round(atoms_initial.cell[:], decimals=6)
+    ref_pbc = atoms_initial.pbc
+    if calc_params is not None and calc_params.get('magmoms') is not None:
+        ref_magmoms = np.round(np.asarray(calc_params['magmoms'], dtype=float), decimals=6)
+    else:
+        ref_magmoms = np.round(atoms_initial.get_initial_magnetic_moments(), decimals=6)
+
+    matched = []
+    for row in rows:
+        row_atoms = row.toatoms()
+        if not np.array_equal(row_atoms.numbers, ref_numbers):
+            continue
+        if not np.array_equal(np.round(row_atoms.positions, decimals=6), ref_positions):
+            continue
+        if not np.array_equal(np.round(row_atoms.cell[:], decimals=6), ref_cell):
+            continue
+        if not np.array_equal(row_atoms.pbc, ref_pbc):
+            continue
+        row_magmoms = np.round(row_atoms.get_initial_magnetic_moments(), decimals=6)
+        if not np.array_equal(row_magmoms, ref_magmoms):
+            continue
+        matched.append(row)
+
+    return matched
+
+
 def load_gpaw_calculation(atoms_initial, calc_params,
                           db=None, legacy_gpaw=None,
                           gpw_logs=_DEFAULT_GPW_LOGS):
