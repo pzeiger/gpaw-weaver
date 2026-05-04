@@ -265,7 +265,8 @@ def query_gpaw_calculations(atoms_initial, db=None, calc_params=None):
 
 def load_gpaw_calculation(atoms_initial, calc_params,
                           db=None, legacy_gpaw=None,
-                          gpw_logs=_DEFAULT_GPW_LOGS):
+                          gpw_logs=_DEFAULT_GPW_LOGS,
+                          txt='gpaw_log.txt'):
     """Load a previously stored calculation from the ASE database.
 
     Parameters
@@ -292,6 +293,8 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         to ``True`` for rows written before this field was introduced.
     gpw_logs : Path
         Directory where log files are stored (default ``gpw_logs/``).
+    txt : str
+        Logfile name for the loaded calculator (default ``gpaw_log.txt``).
 
     Returns
     -------
@@ -344,10 +347,9 @@ def load_gpaw_calculation(atoms_initial, calc_params,
     kv = atoms_converged.info['key_value_pairs']
     use_legacy = kv.get('legacy_gpaw', True)
 
-    log_path = Path(gpw_logs) / f'{Path(gpw_file).stem}.txt'
     if use_legacy:
-        calc = GPAW(str(gpw_file), txt=str(log_path))
+        calc = GPAW(str(gpw_file), txt=txt)
     else:
-        calc = _NewGPAW(str(gpw_file), txt=str(log_path))
+        calc = _NewGPAW(str(gpw_file), txt=txt)
 
     return atoms_converged, calc
