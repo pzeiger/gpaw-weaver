@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pytest
 
 from gpaw_weaver.calculations import (
+    delete_gpaw_calculation,
     load_gpaw_calculation,
     query_gpaw_calculations,
     run_and_store_gpaw_calculation,
@@ -400,3 +401,28 @@ def test_db_default(fe_atom, pw_params, work_dirs, tmp_path, monkeypatch):
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
     assert (tmp_path / "calculations.db").exists()
+
+
+@LEGACY
+def test_delete_calculation(fe_atom, pw_params, db, work_dirs, legacy_gpaw):
+    """Test deleting a calculation from the database."""
+    gpw_dir, gpw_logs = work_dirs
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        run_and_store_gpaw_calculation(
+            fe_atom, pw_params, db=db,
+            legacy_gpaw=legacy_gpaw, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    # Verify it exists
+    rows_before = query_gpaw_calculations(fe_atom, db=db, calc_params=pw_params)
+    assert len(rows_before) == 2  # initial and converged rows
+
+    # Delete it
+    deleted_count = delete_gpaw_calculation(fe_atom, pw_params, db=db, legacy_gpaw=legacy_gpaw)
+    assert deleted_count == 2  # initial and converged rows
+
+    # Verify it's gone
+    rows_after = query_gpaw_calculations(fe_atom, db=db, calc_params=pw_params)
+    assert len(rows_after) == 0
