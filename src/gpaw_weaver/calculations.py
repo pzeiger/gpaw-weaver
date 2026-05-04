@@ -353,3 +353,48 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         calc = _NewGPAW(str(gpw_file), txt=txt)
 
     return atoms_converged, calc
+
+
+def delete_gpaw_calculation(atoms_initial, calc_params,
+                            db=None, legacy_gpaw=None):
+    """Delete a previously stored calculation from the ASE database.
+
+    Deletes all database rows (initial and converged) that match the
+    atoms structure and calc_params.
+
+    Parameters
+    ----------
+    atoms_initial : ase.Atoms
+        The initial structure passed to ``run_and_store_gpaw_calculation``.
+        Its hash is used to identify the matching database entries.
+    calc_params : dict or None
+        The same ``calc_params`` dict used in
+        ``run_and_store_gpaw_calculation``. All keys are included in the hash.
+        When ``None`` only the atomic structure contributes to the hash.
+    db : ase.db.core.Database or str or Path or None
+        Database to search. Accepts an already-connected ASE database
+        object, a file path (str or Path) to connect to, or ``None`` to
+        use the default ``calculations.db`` in the working directory.
+    legacy_gpaw : bool or None
+        Filter by old (``True``) or new (``False``) GPAW implementation.
+        When ``None`` (default) matches both.
+
+    Returns
+    -------
+    int
+        Number of rows deleted.
+    """
+    db = _resolve_db(db)
+
+    atoms_hash = _calculation_hash(atoms_initial, calc_params)
+    extra = {'atoms_hash': atoms_hash}
+    if legacy_gpaw is not None:
+        extra['legacy_gpaw'] = legacy_gpaw
+    rows = list(db.select(**extra))
+
+    deleted_count = 0
+    for row in rows:
+        db.delete(row.id)
+        deleted_count += 1
+
+    return deleted_count
