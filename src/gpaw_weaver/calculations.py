@@ -398,3 +398,54 @@ def delete_gpaw_calculation(atoms_initial, calc_params,
         deleted_count += 1
 
     return deleted_count
+
+
+def list_gpaw_calculations(atoms_initial=None, calc_params=None, db=None,
+                           columns=None):
+    """List stored calculations in the database with specified columns.
+
+    Returns a list of dictionaries, each containing the database ID and
+    the requested columns from the calculation metadata.
+
+    Parameters
+    ----------
+    atoms_initial : ase.Atoms or None
+        Reference structure to filter by. If None, list all calculations.
+    calc_params : dict or None
+        Subset of calculation parameters to filter by. Only keys present here
+        are required to match. If None, no parameter filtering.
+    db : ase.db.core.Database or str or Path or None
+        Database to search. Accepts an already-connected ASE database
+        object, a file path (str or Path) to connect to, or None to
+        use the default ``calculations.db`` in the working directory.
+    columns : list of str or None
+        List of column names to include in the output. If None, includes
+        all available key-value pairs.
+
+    Returns
+    -------
+    list of dict
+        Each dict contains 'id' (database row ID) and the requested columns.
+    """
+    db = _resolve_db(db)
+
+    if atoms_initial is None and calc_params is None:
+        # List all rows
+        rows = list(db.select())
+    else:
+        # Use query_gpaw_calculations to filter
+        rows = query_gpaw_calculations(atoms_initial, db=db, calc_params=calc_params)
+
+    result = []
+    for row in rows:
+        entry = {'id': row.id}
+        kv = row.key_value_pairs
+        if columns is None:
+            entry.update(kv)
+        else:
+            for col in columns:
+                if col in kv:
+                    entry[col] = kv[col]
+        result.append(entry)
+
+    return result
