@@ -37,22 +37,23 @@
         }
     },
 
-    "runArgs": [
-	"--cap-add=SYS_PTRACE",
-        "--security-opt",
-        "seccomp=unconfined",
-        "--device=/dev/kfd",
-        "--device=/dev/dri",
-        "--group-add=video",
-        "--ipc=host",
-        "--shm-size",
-        "8G"
-    ],
+    // "runArgs": [
+	// "--cap-add=SYS_PTRACE",
+    //     "--security-opt",
+    //     "seccomp=unconfined",
+    //     "--device=/dev/kfd",
+    //     "--device=/dev/dri",
+    //     "--group-add=video",
+    //     "--ipc=host",
+    //     "--shm-size",
+    //     "8G"
+    // ],
 
     "containerEnv": {
         "GPAW_NEW": "0",
         "GPAW_USE_GPUS": "0",
         "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}",
+        "ANTHROPIC_OAUTH_TOKEN": "${localEnv:ANTHROPIC_OAUTH_TOKEN}",
         "CLAUDE_CONFIG_DIR": "/workspace/.claude"
     }
 
