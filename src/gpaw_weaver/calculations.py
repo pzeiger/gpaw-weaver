@@ -394,7 +394,7 @@ def delete_gpaw_calculation(atoms_initial, calc_params,
 
     deleted_count = 0
     for row in rows:
-        db.delete(row.id)
+        db.delete([row.id])
         deleted_count += 1
 
     return deleted_count
