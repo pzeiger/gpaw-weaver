@@ -355,18 +355,20 @@ def load_gpaw_calculation(atoms_initial, calc_params,
     return atoms_converged, calc
 
 
-def delete_gpaw_calculation(atoms_initial, calc_params,
-                            db=None, legacy_gpaw=None):
+def delete_gpaw_calculation(atoms_initial=None, calc_params=None,
+                            db=None, legacy_gpaw=None, row_id=None):
     """Delete a previously stored calculation from the ASE database.
 
     Deletes all database rows (initial and converged) that match the
-    atoms structure and calc_params.
+    atoms structure and calc_params, or deletes a calculation by its
+    row ID.
 
     Parameters
     ----------
-    atoms_initial : ase.Atoms
+    atoms_initial : ase.Atoms or None
         The initial structure passed to ``run_and_store_gpaw_calculation``.
         Its hash is used to identify the matching database entries.
+        Required unless ``row_id`` is provided.
     calc_params : dict or None
         The same ``calc_params`` dict used in
         ``run_and_store_gpaw_calculation``. All keys are included in the hash.
@@ -377,7 +379,11 @@ def delete_gpaw_calculation(atoms_initial, calc_params,
         use the default ``calculations.db`` in the working directory.
     legacy_gpaw : bool or None
         Filter by old (``True``) or new (``False``) GPAW implementation.
-        When ``None`` (default) matches both.
+        When ``None`` (default) matches both. Only used when ``row_id`` is not
+        provided.
+    row_id : int or None
+        Delete the row with this database ID. If the row belongs to a
+        stored calculation pair, the linked row is also deleted.
 
     Returns
     -------
@@ -386,15 +392,31 @@ def delete_gpaw_calculation(atoms_initial, calc_params,
     """
     db = _resolve_db(db)
 
-    atoms_hash = _calculation_hash(atoms_initial, calc_params)
-    extra = {'atoms_hash': atoms_hash}
-    if legacy_gpaw is not None:
-        extra['legacy_gpaw'] = legacy_gpaw
-    rows = list(db.select(**extra))
+    if row_id is not None:
+        row = db.get(row_id)
+        if row is None:
+            raise LookupError(f'No database row found with id={row_id!r}')
+        rows = [row]
+    else:
+        if atoms_initial is None:
+            raise ValueError('atoms_initial is required when row_id is not provided')
+        atoms_hash = _calculation_hash(atoms_initial, calc_params)
+        extra = {'atoms_hash': atoms_hash}
+        if legacy_gpaw is not None:
+            extra['legacy_gpaw'] = legacy_gpaw
+        rows = list(db.select(**extra))
+
+    deleted_ids = set()
+    for row in rows:
+        deleted_ids.add(row.id)
+        if 'converged_id' in row.key_value_pairs:
+            deleted_ids.add(row.key_value_pairs['converged_id'])
+        if 'initial_id' in row.key_value_pairs:
+            deleted_ids.add(row.key_value_pairs['initial_id'])
 
     deleted_count = 0
-    for row in rows:
-        db.delete([row.id])
+    for row_id in deleted_ids:
+        db.delete([row_id])
         deleted_count += 1
 
     return deleted_count

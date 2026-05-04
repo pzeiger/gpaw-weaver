@@ -430,6 +430,30 @@ def test_delete_calculation(fe_atom, pw_params, db, work_dirs, legacy_gpaw):
 
 
 @LEGACY
+def test_delete_calculation_by_row_id(fe_atom, pw_params, db, work_dirs, legacy_gpaw):
+    """Test deleting a calculation by database row ID."""
+    gpw_dir, gpw_logs = work_dirs
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        run_and_store_gpaw_calculation(
+            fe_atom, pw_params, db=db,
+            legacy_gpaw=legacy_gpaw, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+
+    rows_before = query_gpaw_calculations(fe_atom, db=db, calc_params=pw_params)
+    assert len(rows_before) == 2
+
+    row_id = rows_before[0].id
+    deleted_count = delete_gpaw_calculation(db=db, row_id=row_id)
+    assert deleted_count == 2
+
+    rows_after = query_gpaw_calculations(fe_atom, db=db, calc_params=pw_params)
+    assert len(rows_after) == 0
+
+
+@LEGACY
 def test_list_calculations(fe_atom, pw_params, db, work_dirs, legacy_gpaw):
     """Test listing calculations with specified columns."""
     gpw_dir, gpw_logs = work_dirs
