@@ -38,6 +38,10 @@ def make_fake_gpaw_class(n_spins=1, log_content=None):
 
         def __init__(self, *args, txt=None, **kwargs):
             super().__init__()
+            # Record construction arguments so tests can assert what
+            # run_and_store forwarded to the GPAW constructor.
+            self.init_args = args
+            self.init_kwargs = kwargs
             if txt and log_content is not None:
                 Path(txt).parent.mkdir(parents=True, exist_ok=True)
                 Path(txt).write_text(log_content)

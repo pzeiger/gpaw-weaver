@@ -94,6 +94,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
                                    save_gpw=False,
                                    save_gpw_mode='calculation',
                                    legacy_gpaw=True,
+                                   parallel=None,
                                    gpw_dir=_DEFAULT_GPW_DIR,
                                    gpw_logs=_DEFAULT_GPW_LOGS):
     """Run a GPAW calculation and store results in the ASE database.
@@ -132,6 +133,14 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
         Use the old GPAW implementation (``True``, default) or the new
         refactored one (``False``). Stored in the DB for use by
         ``load_gpaw_calculation``.
+    parallel : dict or None
+        GPAW parallelization settings (e.g. ``{'augment_grids': True}``),
+        forwarded to the GPAW constructor's ``parallel`` keyword. This is a
+        runtime/execution detail, **not** part of the calculation's identity:
+        it is deliberately excluded from ``calc_params``, the ``atoms_hash``,
+        and the stored DB key-value pairs, so the same physical calculation
+        run with different parallelization maps to the same hash. ``None``
+        (default) leaves GPAW's own defaults untouched.
     gpw_dir : Path
         Directory for ``.gpw`` restart files (default ``gpw_files/``).
     gpw_logs : Path
@@ -158,9 +167,13 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     atoms = atoms_initial.copy()
+    # `parallel` is a runtime setting: forward it to the constructor but keep
+    # it out of calc_params (and therefore out of the hash / DB identity).
     if legacy_gpaw:
         gpaw_params = {k: v for k, v in calc_params.items()
                        if k in GPAW.default_parameters}
+        if parallel is not None:
+            gpaw_params['parallel'] = parallel
         magmoms = calc_params.get('magmoms')
         if magmoms is not None:
             atoms.set_initial_magnetic_moments(magmoms)
@@ -168,6 +181,8 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
     else:
         gpaw_params = {k: v for k, v in calc_params.items()
                        if k in _NEW_GPAW_PARAMS}
+        if parallel is not None:
+            gpaw_params['parallel'] = parallel
         calc = _NewGPAW(**gpaw_params, txt=str(log_path))
     atoms.calc = calc
     atoms.get_potential_energy()

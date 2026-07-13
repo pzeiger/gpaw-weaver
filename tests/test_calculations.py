@@ -487,3 +487,50 @@ def test_list_calculations(fe_atom, pw_params, db, work_dirs, legacy_gpaw):
     # List with no matching
     empty_list = list_gpaw_calculations(atoms_initial=fe_atom, calc_params={'xc': 'LDA'}, db=db, columns=columns)
     assert len(empty_list) == 0
+
+
+@LEGACY
+def test_parallel_forwarded_but_excluded_from_identity(
+        fe_atom, pw_params, work_dirs, tmp_path, legacy_gpaw):
+    """`parallel` reaches the GPAW constructor but is not part of identity.
+
+    It must be forwarded to the constructor's ``parallel`` keyword, yet
+    excluded from the ``atoms_hash`` and the stored DB key-value pairs, so
+    the same physical calculation run with different parallelization maps to
+    the same hash.
+    """
+    from ase.db import connect
+
+    gpw_dir, gpw_logs = work_dirs
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log())
+    parallel = {"augment_grids": True}
+
+    db_par = connect(str(tmp_path / "par.db"))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        atoms_par, _, conv_par = run_and_store_gpaw_calculation(
+            fe_atom, pw_params, db=db_par, legacy_gpaw=legacy_gpaw,
+            parallel=parallel, gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+
+    # (1) forwarded to the constructor
+    assert atoms_par.calc.init_kwargs.get("parallel") == parallel
+
+    db_plain = connect(str(tmp_path / "plain.db"))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        atoms_plain, _, conv_plain = run_and_store_gpaw_calculation(
+            fe_atom, pw_params, db=db_plain, legacy_gpaw=legacy_gpaw,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+
+    # (2) default None means the constructor is not given a parallel kwarg
+    assert "parallel" not in atoms_plain.calc.init_kwargs
+
+    # (3) identity hash is identical with vs without parallel
+    hash_par = db_par.get(id=conv_par).key_value_pairs["atoms_hash"]
+    hash_plain = db_plain.get(id=conv_plain).key_value_pairs["atoms_hash"]
+    assert hash_par == hash_plain
+
+    # (4) parallel is not persisted as a DB key-value pair
+    assert "parallel" not in db_par.get(id=conv_par).key_value_pairs
