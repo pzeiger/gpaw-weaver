@@ -1,5 +1,22 @@
 # CLAUDE.md
 
+## Backward compatibility (first-class requirement)
+
+**Every change must keep existing databases readable and reproducible — a
+newer gpaw-weaver must read and write an older DB with no migration.** This is
+a primary design constraint for all future work here, not an afterthought:
+
+- Treat `_calculation_hash` and `_serialize_calc_params` as a stable contract.
+  Never change how existing keys are hashed/serialised; a stored `atoms_hash`
+  must stay reproducible so old entries remain findable.
+- Add capabilities *additively*: new parameters default to a no-op, and new
+  behaviour activates only when a new key/argument is explicitly used, so
+  every existing call site and stored row behaves exactly as before.
+- If a change genuinely cannot preserve identity, it needs a deliberate,
+  documented, versioned migration — never a silent hash shift.
+- Guard the invariant with tests (the existing suite exercising the unchanged
+  path is part of the proof).
+
 ## Package structure
 
 `src/` layout — the importable package lives at `src/gpaw_weaver/`:
@@ -21,7 +38,8 @@ All public symbols are importable flat: `from gpaw_weaver import make_pw_params`
 run_and_store_gpaw_calculation(atoms_initial, calc_params,
                                db=None, label=None,
                                save_gpw=False, save_gpw_mode='calculation',
-                               legacy_gpaw=True, gpw_dir=..., gpw_logs=...)
+                               legacy_gpaw=True, parallel=None, vdw_factory=None,
+                               gpw_dir=..., gpw_logs=...)
 
 load_gpaw_calculation(atoms_initial,
                       db=None, calc_params=None, legacy_gpaw=None, gpw_logs=...)
@@ -48,6 +66,23 @@ Every stored entry carries an `atoms_hash` key-value pair computed by `_calculat
 - `calc_params` must be passed to `load_gpaw_calculation` to reproduce the correct hash. Omitting it hashes only the atomic structure and atoms magmoms.
 
 `load_gpaw_calculation` raises `LookupError` when no match is found and `ValueError` when more than one converged row matches — narrow with `legacy_gpaw` or store distinct entries under different `label` values.
+
+### van der Waals wrapper corrections (`vdw` / `vdw_factory`)
+
+Two kinds of vdW correction:
+- **Non-local `xc` functionals** (vdW-DF, vdW-DF-cx, …) need nothing special — they are just an `xc` value in `calc_params`, hashed and applied like any GPAW parameter.
+- **Wrapper-style corrections** (Tkatchenko-Scheffler, DFT-D3, DFT-D4) are ASE calculators that *wrap* GPAW. weaver builds only a bare GPAW, so these use the `vdw` / `vdw_factory` pair:
+  - `calc_params['vdw']` is a serialisable **descriptor** (e.g. `{'name': 'ts09', 'xc': 'PBE'}`). It carries the correction's **identity** — it is serialised, hashed, and stored like any other key, so a vdW run is distinct from the same calculation without it, and distinct per scheme.
+  - `vdw_factory(dft_calc, atoms, descriptor)` is the **runtime mechanism** that turns the descriptor into a wrapper calculator around the freshly built GPAW. It is *not* serialised — weaver stays independent of any specific dispersion backend; the caller (project) owns the factory.
+  - Required whenever `calc_params` has a `vdw` key (else `ValueError` — never a silent bare-GPAW run). The inner GPAW (`dft_calc`), not the wrapper, is used for the spin check and the `.gpw` restart.
+
+**Backward compatibility (must be preserved by any future change here).** The `vdw` feature is strictly additive and **fully backward compatible in both directions** — a new gpaw-weaver reads *and* writes an old database with **no migration**:
+- **No schema change.** ASE `db` rows hold arbitrary key-value pairs; old rows simply lack a `vdw` key. Nothing about the table changes.
+- **Hash invariance.** `_calculation_hash` / `_serialize_calc_params` are **untouched**. `vdw` only enters the hash *when the key is present*, so any `calc_params` without a `vdw` key serialises byte-for-byte as before and produces the **identical** `atoms_hash` — old entries are still found by `load_gpaw_calculation` / `query_gpaw_calculations`, and a new run without vdW lands on the same hash an old weaver would have computed.
+- **Inert unless used.** `vdw_factory` defaults to `None` and the wrapping branch runs only when `calc_params.get('vdw')` is set; every pre-existing call site and the entire pre-existing test suite hit exactly the old code path (the internal rename `calc`→`dft_calc` has no external effect).
+- **Old weaver + new DB** also reads fine: an old weaver ignores the extra `vdw` kv, and non-vdW lookups never collide with vdW rows (distinct hashes). It merely cannot *re-run* a vdW entry (no hook) — never data corruption.
+
+Do not alter `_calculation_hash`, `_serialize_calc_params`, or the "no `vdw` key ⇒ old behaviour" invariant without a deliberate, documented migration — existing databases depend on it.
 
 ### GPAW implementation dispatch (`legacy_gpaw`)
 

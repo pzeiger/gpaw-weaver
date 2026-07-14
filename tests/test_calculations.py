@@ -11,9 +11,11 @@ Scenarios covered (× both legacy_gpaw values):
   - save_gpw=True  (GPW file written, DB updated)
   - load roundtrip (run then load_gpaw_calculation)
 """
+import json
 from unittest.mock import patch
 
 import pytest
+from ase.calculators.calculator import Calculator, all_changes
 
 from gpaw_weaver.calculations import (
     delete_gpaw_calculation,
@@ -534,3 +536,98 @@ def test_parallel_forwarded_but_excluded_from_identity(
 
     # (4) parallel is not persisted as a DB key-value pair
     assert "parallel" not in db_par.get(id=conv_par).key_value_pairs
+
+
+# ---------------------------------------------------------------------------
+# van der Waals wrapper-correction hook (vdw_factory)
+# ---------------------------------------------------------------------------
+
+class _FakeVdw(Calculator):
+    """Minimal wrapper calculator: inner DFT energy + a fixed dispersion delta.
+
+    Stands in for a real wrapper scheme (Tkatchenko-Scheffler, DFT-D3/D4) in
+    tests without pulling in a dispersion backend.
+    """
+
+    implemented_properties = ["energy", "forces"]
+    name = "fakevdw"
+
+    def __init__(self, dft, delta):
+        super().__init__()
+        self.dft = dft
+        self.delta = delta
+
+    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
+        # Record the state (as real ASE calculators do) so ase.db can read the
+        # stored energy back without recomputing.
+        self.atoms = atoms.copy()
+        self.dft.calculate(atoms, ["energy", "forces"], system_changes)
+        r = self.dft.results
+        self.results = {"energy": r["energy"] + self.delta, "forces": r["forces"]}
+
+
+def _vdw_factory(dft_calc, atoms, descriptor):
+    return _FakeVdw(dft_calc, descriptor["delta"])
+
+
+@LEGACY
+def test_vdw_wrapper_applied_and_stored(fe_atom, pw_params, db, work_dirs, legacy_gpaw):
+    """A `vdw` descriptor wraps the DFT calc; corrected energy + identity stored."""
+    gpw_dir, gpw_logs = work_dirs
+    vdw_params = {**pw_params, "vdw": {"name": "fake", "delta": -5.0}}
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        atoms, initial_id, converged_id = run_and_store_gpaw_calculation(
+            fe_atom, vdw_params, db=db, legacy_gpaw=legacy_gpaw,
+            vdw_factory=_vdw_factory, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    # corrected energy (a bare FakeGPAW would give -100.0)
+    assert atoms.get_potential_energy() == pytest.approx(-105.0)
+    conv_row = db.get(id=converged_id)
+    assert conv_row.energy == pytest.approx(-105.0)
+    # the vdw descriptor is part of the stored identity
+    assert conv_row.key_value_pairs["vdw"] == json.dumps(
+        {"name": "fake", "delta": -5.0}, sort_keys=True)
+    # save_gpw wrote via the inner GPAW (the wrapper has no .write)
+    calc_hash = conv_row.key_value_pairs["atoms_hash"]
+    assert (gpw_dir / f"{calc_hash}.gpw").exists()
+
+
+@LEGACY
+def test_vdw_changes_identity_hash(fe_atom, pw_params, db, work_dirs, legacy_gpaw):
+    """Same structure/params hash differently with vs without a vdw descriptor,
+    and a plain (no-vdw) call keeps the exact pre-existing hash (back-compat)."""
+    gpw_dir, gpw_logs = work_dirs
+    vdw_params = {**pw_params, "vdw": {"name": "fake", "delta": -5.0}}
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        _, _, plain_id = run_and_store_gpaw_calculation(
+            fe_atom, pw_params, db=db, legacy_gpaw=legacy_gpaw,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs)
+        _, _, vdw_id = run_and_store_gpaw_calculation(
+            fe_atom, vdw_params, db=db, legacy_gpaw=legacy_gpaw,
+            vdw_factory=_vdw_factory, gpw_dir=gpw_dir, gpw_logs=gpw_logs)
+    h_plain = db.get(id=plain_id).key_value_pairs["atoms_hash"]
+    h_vdw = db.get(id=vdw_id).key_value_pairs["atoms_hash"]
+    assert h_plain != h_vdw
+    # a no-vdw calc_params must hash exactly as a bare make_pw_params would,
+    # i.e. the vdw feature does not perturb existing entries' identity.
+    from gpaw_weaver.calculations import _calculation_hash
+    assert h_plain == _calculation_hash(fe_atom, pw_params)
+
+
+@LEGACY
+def test_vdw_without_factory_raises(fe_atom, pw_params, db, work_dirs, legacy_gpaw):
+    """A `vdw` descriptor without a vdw_factory is a hard error, not silent."""
+    gpw_dir, gpw_logs = work_dirs
+    vdw_params = {**pw_params, "vdw": {"name": "fake", "delta": -5.0}}
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        with pytest.raises(ValueError, match="vdw_factory"):
+            run_and_store_gpaw_calculation(
+                fe_atom, vdw_params, db=db, legacy_gpaw=legacy_gpaw,
+                gpw_dir=gpw_dir, gpw_logs=gpw_logs)

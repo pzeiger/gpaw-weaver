@@ -95,6 +95,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
                                    save_gpw_mode='calculation',
                                    legacy_gpaw=True,
                                    parallel=None,
+                                   vdw_factory=None,
                                    gpw_dir=_DEFAULT_GPW_DIR,
                                    gpw_logs=_DEFAULT_GPW_LOGS):
     """Run a GPAW calculation and store results in the ASE database.
@@ -141,6 +142,25 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
         and the stored DB key-value pairs, so the same physical calculation
         run with different parallelization maps to the same hash. ``None``
         (default) leaves GPAW's own defaults untouched.
+    vdw_factory : callable or None
+        Factory used to apply a van der Waals correction that is implemented
+        as a *wrapper* calculator around GPAW (e.g. Tkatchenko-Scheffler,
+        DFT-D3, DFT-D4), as opposed to a non-local ``xc`` functional (which
+        needs no wrapper and is handled through ``calc_params['xc']``).
+
+        It is called as ``vdw_factory(dft_calc, atoms, descriptor)`` and must
+        return an ASE calculator that wraps *dft_calc*; ``descriptor`` is the
+        value of ``calc_params['vdw']``. The wrapper provides the corrected
+        energy/forces used during the run and stored in the DB.
+
+        The correction's *identity* lives in ``calc_params['vdw']`` (a
+        serialisable descriptor), so it enters the ``atoms_hash`` and the
+        stored key-value pairs like any other parameter; ``vdw_factory`` is
+        only the runtime mechanism that turns that descriptor into a
+        calculator, which keeps weaver independent of any specific dispersion
+        backend. Required whenever ``calc_params`` contains a ``vdw`` key;
+        ignored otherwise. The wrapped GPAW calculator (not the wrapper) is
+        used for the spin check and for writing the ``.gpw`` restart file.
     gpw_dir : Path
         Directory for ``.gpw`` restart files (default ``gpw_files/``).
     gpw_logs : Path
@@ -177,17 +197,34 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
         magmoms = calc_params.get('magmoms')
         if magmoms is not None:
             atoms.set_initial_magnetic_moments(magmoms)
-        calc = GPAW(**gpaw_params, txt=str(log_path))
+        dft_calc = GPAW(**gpaw_params, txt=str(log_path))
     else:
         gpaw_params = {k: v for k, v in calc_params.items()
                        if k in _NEW_GPAW_PARAMS}
         if parallel is not None:
             gpaw_params['parallel'] = parallel
-        calc = _NewGPAW(**gpaw_params, txt=str(log_path))
+        dft_calc = _NewGPAW(**gpaw_params, txt=str(log_path))
+
+    # A `vdw` descriptor in calc_params selects a wrapper-style dispersion
+    # correction: the caller-supplied vdw_factory turns it into a calculator
+    # wrapping dft_calc, which then provides the corrected energy/forces. The
+    # descriptor is hashed and stored via calc_params (identity); dft_calc is
+    # kept for the spin check and the .gpw restart (the wrapper delegates its
+    # SCF to it and usually cannot write a restart itself).
+    vdw = calc_params.get('vdw')
+    if vdw is not None:
+        if vdw_factory is None:
+            raise ValueError(
+                "calc_params contains a 'vdw' descriptor but no vdw_factory "
+                'was supplied to build the correction calculator.')
+        calc = vdw_factory(dft_calc, atoms, vdw)
+    else:
+        calc = dft_calc
+
     atoms.calc = calc
     atoms.get_potential_energy()
     atoms.get_forces()
-    if calc.get_number_of_spins() > 1:
+    if dft_calc.get_number_of_spins() > 1:
         atoms.get_magnetic_moments()
 
     convergence_data = extract_scf_convergence(log_path)
@@ -212,7 +249,7 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
     if save_gpw:
         gpw_file = Path(gpw_dir) / f'{calc_hash}.gpw'
         gpw_file.parent.mkdir(parents=True, exist_ok=True)
-        calc.write(str(gpw_file), mode=save_gpw_mode)
+        dft_calc.write(str(gpw_file), mode=save_gpw_mode)
         db.update(converged_id, gpw_file=str(gpw_file))
         atoms.info.setdefault('key_value_pairs', {})['gpw_file'] = str(gpw_file)
 
@@ -317,6 +354,16 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         Converged atoms with additional info attached.
     calc : GPAW
         Calculator loaded from the GPW file.
+
+    Notes
+    -----
+    For a calculation stored with a wrapper-style ``vdw`` correction (see
+    ``run_and_store_gpaw_calculation``), the stored energy/forces on
+    ``atoms_converged`` are the corrected values, but the returned ``calc`` is
+    the bare inner GPAW loaded from the ``.gpw`` file - it is not re-wrapped in
+    the dispersion calculator. Re-apply the correction with the same factory
+    (``vdw_factory(calc, atoms_converged, calc_params['vdw'])``) if you need
+    corrected energies/forces from the reloaded calculator.
     """
     db = _resolve_db(db)
 
