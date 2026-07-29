@@ -538,6 +538,32 @@ def test_parallel_forwarded_but_excluded_from_identity(
     assert "parallel" not in db_par.get(id=conv_par).key_value_pairs
 
 
+def test_new_gpaw_forwards_calc_params(fe_atom, pw_params, work_dirs, tmp_path):
+    """New-GPAW path forwards the real calc_params to the constructor.
+
+    The public new-GPAW ``GPAW()`` is ``(*args, **kwargs)``, so a params filter
+    keyed on its signature drops *every* physics key (mode/kpts/xc) and builds an
+    argument-less calculator that dies with "missing 'mode'". This guards the
+    forward-everything-but-weaver-internals behaviour on the ``legacy_gpaw=False``
+    path (the legacy path filters by ``GPAW.default_parameters`` separately).
+    """
+    from ase.db import connect
+
+    gpw_dir, gpw_logs = work_dirs
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log())
+    db = connect(str(tmp_path / "new.db"))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        atoms, _, _ = run_and_store_gpaw_calculation(
+            fe_atom, pw_params, db=db, legacy_gpaw=False,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    kw = atoms.calc.init_kwargs
+    for key in pw_params:            # every physics key must reach the constructor
+        assert key in kw, f"new-GPAW path dropped calc_params key {key!r}"
+    assert kw["mode"] == pw_params["mode"]
+
+
 # ---------------------------------------------------------------------------
 # van der Waals wrapper-correction hook (vdw_factory)
 # ---------------------------------------------------------------------------

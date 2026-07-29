@@ -1,5 +1,4 @@
 import hashlib
-import inspect
 import json
 from pathlib import Path
 
@@ -9,8 +8,6 @@ from gpaw.calculator import GPAW
 from gpaw.new.ase_interface import GPAW as _NewGPAW
 
 from .log import extract_scf_convergence
-
-_NEW_GPAW_PARAMS = set(inspect.signature(_NewGPAW).parameters)
 
 _DEFAULT_GPW_DIR = Path('gpw_files')
 _DEFAULT_GPW_LOGS = Path('gpw_logs')
@@ -199,8 +196,15 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
             atoms.set_initial_magnetic_moments(magmoms)
         dft_calc = GPAW(**gpaw_params, txt=str(log_path))
     else:
+        # New GPAW's public GPAW() is (*args, **kwargs), so filtering by its
+        # signature would drop EVERY real key (mode/kpts/xc/...). Pass calc_params
+        # through instead, excluding only weaver-internal descriptors that are not
+        # GPAW constructor arguments; new GPAW validates the remaining kwargs
+        # itself. Unlike legacy (which sets magmoms on the atoms), new GPAW takes
+        # magmoms directly as a constructor kwarg, so it stays in gpaw_params.
+        _WEAVER_ONLY = {'vdw'}          # applied via vdw_factory, not a GPAW kwarg
         gpaw_params = {k: v for k, v in calc_params.items()
-                       if k in _NEW_GPAW_PARAMS}
+                       if k not in _WEAVER_ONLY}
         if parallel is not None:
             gpaw_params['parallel'] = parallel
         dft_calc = _NewGPAW(**gpaw_params, txt=str(log_path))
