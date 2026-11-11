@@ -12,8 +12,6 @@ Small helpers for running and organizing [GPAW](https://gpaw.readthedocs.io) cal
 - [GPAW](https://gpaw.readthedocs.io/install.html) and its dependencies (OpenBLAS / ScaLAPACK, libxc, …)
 - [ASE](https://wiki.fysik.dtu.dk/ase/install.html)
 
-A pre-configured devcontainer is included (see [`.devcontainer/`](.devcontainer/)) that builds GPAW with MPI, ScaLAPACK, libxc, libvdwxc, and FFTW on Ubuntu.
-
 ## Installation
 
 Install directly from GitHub (no PyPI release yet):
