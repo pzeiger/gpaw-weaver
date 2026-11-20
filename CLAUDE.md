@@ -41,15 +41,16 @@ run_and_store_gpaw_calculation(atoms_initial, calc_params,
                                legacy_gpaw=True, parallel=None, vdw_factory=None,
                                gpw_dir=..., gpw_logs=...)
 
-load_gpaw_calculation(atoms_initial,
-                      db=None, calc_params=None, legacy_gpaw=None, gpw_logs=...)
+load_gpaw_calculation(atoms_initial, calc_params,
+                      db=None, legacy_gpaw=None, gpw_logs=...,
+                      txt='gpaw_log.txt')
 
 query_gpaw_calculations(atoms_initial, db=None, calc_params=None)
 ```
 
 - Both `atoms_initial` and `calc_params` are required positional arguments for `run_and_store_gpaw_calculation`.
-- `atoms_initial` is required in `load_gpaw_calculation` — it is hashed to identify the stored entry.
-- `label` is optional in both functions. It is stored in the DB for human readability but is **not** used as a query filter.
+- `atoms_initial` and `calc_params` are positional in `load_gpaw_calculation` — both are hashed to identify the stored entry (`calc_params=None` hashes the structure alone, see below). `txt` is the loaded calculator's logfile, relative to the working directory by default.
+- `label` is an optional argument of `run_and_store_gpaw_calculation`. It is stored in the DB for human readability but is **not** used as a query filter.
 - `query_gpaw_calculations` returns a list of all `AtomsRow` objects whose stored structure (numbers, positions, cell, pbc, magmoms) and calc_params are a superset of the supplied values. Keys absent from the supplied `calc_params` are ignored (partial match). Returns both initial and converged rows.
 
 ### Database (`db`)
