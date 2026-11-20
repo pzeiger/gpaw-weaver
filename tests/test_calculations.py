@@ -392,9 +392,8 @@ def test_query_no_calc_params_matches_by_structure_only(fe_atom, pw_params, db, 
     assert len(rows) == 4  # 2 runs × 2 rows each
 
 
-def test_db_default(fe_atom, pw_params, work_dirs, tmp_path, monkeypatch):
+def test_db_default(fe_atom, pw_params, work_dirs, tmp_path):
     """Omitting db writes to calculations.db in the working directory."""
-    monkeypatch.chdir(tmp_path)
     gpw_dir, gpw_logs = work_dirs
     FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
     with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
