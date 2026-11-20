@@ -5,7 +5,7 @@ against both GPAW implementations; tests of implementation-independent logic
 run once.  The ASE database and file paths are
 isolated in pytest's tmp_path.
 
-Scenarios covered (× both legacy_gpaw values):
+Parametrized scenarios (× both legacy_gpaw values):
   - non-magnetic
   - collinear spin polarization
   - non-collinear magnetism
