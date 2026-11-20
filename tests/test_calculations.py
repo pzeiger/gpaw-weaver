@@ -147,7 +147,7 @@ def test_load_calculation_roundtrip(fe_atom, pw_params, db, work_dirs, legacy_gp
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         atoms_loaded, calc_loaded = load_gpaw_calculation(
-            fe_atom, db=db, calc_params=pw_params, gpw_logs=gpw_logs,
+            fe_atom, db=db, calc_params=pw_params,
         )
 
     assert atoms_loaded is not None
@@ -174,7 +174,7 @@ def test_load_distinguishes_different_structures(pw_params, db, work_dirs):
             fcc, pw_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
-        atoms_loaded, _ = load_gpaw_calculation(bcc, db=db, calc_params=pw_params, gpw_logs=gpw_logs)
+        atoms_loaded, _ = load_gpaw_calculation(bcc, db=db, calc_params=pw_params)
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == bcc_id
 
 
@@ -198,7 +198,7 @@ def test_load_distinguishes_magnetic_configurations(pw_params, db, work_dirs):
             afm, pw_params, db=db, save_gpw=True,
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
-        atoms_loaded, _ = load_gpaw_calculation(fm, db=db, calc_params=pw_params, gpw_logs=gpw_logs)
+        atoms_loaded, _ = load_gpaw_calculation(fm, db=db, calc_params=pw_params)
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == fm_id
 
 
@@ -222,7 +222,7 @@ def test_load_distinguishes_calc_params_magmoms(pw_params, db, work_dirs):
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         atoms_loaded, _ = load_gpaw_calculation(
-            base, db=db, calc_params=fm_params, gpw_logs=gpw_logs,
+            base, db=db, calc_params=fm_params,
         )
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == fm_id
 
@@ -244,7 +244,7 @@ def test_load_distinguishes_calc_params(fe_atom, pw_params, db, work_dirs):
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         atoms_loaded, _ = load_gpaw_calculation(
-            fe_atom, db=db, calc_params=pbe_params, gpw_logs=gpw_logs,
+            fe_atom, db=db, calc_params=pbe_params,
         )
     assert atoms_loaded.info["key_value_pairs"]["db_id"] == pbe_id
 
@@ -264,7 +264,7 @@ def test_load_raises_on_ambiguous_match(fe_atom, pw_params, db, work_dirs):
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
         with pytest.raises(ValueError, match="2 converged rows match"):
-            load_gpaw_calculation(fe_atom, db=db, calc_params=pw_params, gpw_logs=gpw_logs)
+            load_gpaw_calculation(fe_atom, db=db, calc_params=pw_params)
 
 
 # ---------------------------------------------------------------------------
@@ -691,3 +691,17 @@ def test_list_filters_by_calc_params_alone(fe_atom, pw_params, db, work_dirs):
                                     columns=['xc'])
     assert len(listed) == 4  # both structures, initial and converged rows
     assert all(d['xc'] == 'PBE' for d in listed)
+
+
+def test_load_gpw_logs_is_deprecated(fe_atom, pw_params, db, work_dirs):
+    """Passing the ignored gpw_logs argument to load warns."""
+    gpw_dir, gpw_logs = work_dirs
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        run_and_store_gpaw_calculation(
+            fe_atom, pw_params, db=db, save_gpw=True,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+        with pytest.warns(DeprecationWarning, match="ignores gpw_logs"):
+            load_gpaw_calculation(fe_atom, pw_params, db=db, gpw_logs=gpw_logs)

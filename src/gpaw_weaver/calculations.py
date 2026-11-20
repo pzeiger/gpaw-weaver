@@ -330,7 +330,7 @@ def query_gpaw_calculations(atoms_initial, db=None, calc_params=None):
 
 def load_gpaw_calculation(atoms_initial, calc_params,
                           db=None, legacy_gpaw=None,
-                          gpw_logs=_DEFAULT_GPW_LOGS,
+                          gpw_logs=None,
                           txt='gpaw_log.txt'):
     """Load a previously stored calculation from the ASE database.
 
@@ -356,8 +356,8 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         Filter by old (``True``) or new (``False``) GPAW implementation.
         When ``None`` (default) the value stored in the DB is used, defaulting
         to ``True`` for rows written before this field was introduced.
-    gpw_logs : Path
-        Directory where log files are stored (default ``gpw_logs/``).
+    gpw_logs : Path or None
+        Deprecated and ignored; passing it raises a ``DeprecationWarning``.
     txt : str
         Logfile name for the loaded calculator (default ``gpaw_log.txt``).
 
@@ -380,6 +380,11 @@ def load_gpaw_calculation(atoms_initial, calc_params,
     """
     db = _resolve_db(db)
 
+    if gpw_logs is not None:
+        warnings.warn(
+            'load_gpaw_calculation ignores gpw_logs; the argument is '
+            'deprecated and will be removed.',
+            DeprecationWarning, stacklevel=2)
     atoms_hash = _calculation_hash(atoms_initial, calc_params)
     extra = {'atoms_hash': atoms_hash}
     if legacy_gpaw is not None:
@@ -393,7 +398,8 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         raise ValueError(
             f'{len(converged_rows)} converged rows match '
             f'atoms_hash={atoms_hash!r}. '
-            'Narrow the search with legacy_gpaw or a label stored on the entries.'
+            'Narrow the search with legacy_gpaw, or delete the duplicate '
+            'with delete_gpaw_calculation.'
         )
     if not converged_rows:
         raise LookupError(
