@@ -49,8 +49,9 @@ def make_fd_params(h=None, kpts=None, xc='PBE', convergence=None,
         Explicit grid-point counts ``(na, nb, nc)``. Takes precedence over *h*.
         Compute a commensurate grid via ``gpaw.utilities.h2gpts(h, cell, idiv=8)``.
         A warning is issued when both *h* and *gpts* are supplied.
-    kpts : dict
+    kpts : dict, optional
         k-point specification, e.g. ``{'size': (4, 4, 4), 'gamma': True}``.
+        ``None`` (default) is passed to GPAW unchanged.
     xc : str
         Exchange-correlation functional (default 'PBE').
     convergence : dict, optional
@@ -90,6 +91,15 @@ def make_fd_params(h=None, kpts=None, xc='PBE', convergence=None,
 
 def get_mode_filestr(calc_params):
     """Return a human-readable string encoding the calc mode and k-grid.
+
+    Parameters
+    ----------
+    calc_params : dict
+        Parameters as returned by ``make_pw_params`` or ``make_fd_params``.
+
+    Returns
+    -------
+    str
 
     Examples
     --------

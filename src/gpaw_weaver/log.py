@@ -56,6 +56,18 @@ def extract_scf_convergence(logfile):
     iteration) is ``None``. ``'magmom'`` is a float for collinear
     spin-polarized output, a list of three floats for noncollinear output,
     and ``None`` for non-magnetic calculations.
+
+    Parameters
+    ----------
+    logfile : str or Path
+        GPAW text log.
+
+    Returns
+    -------
+    list of dict
+        One dict per SCF iteration with keys ``'iter'``, ``'energy'``,
+        ``'log10_eigst'``, ``'log10_dens'`` and ``'magmom'``; empty when the
+        log has no SCF rows.
     """
     iterations = []
     with open(logfile, 'r') as f:

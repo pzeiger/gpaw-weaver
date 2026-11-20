@@ -3,7 +3,7 @@
 Small helpers for running and organizing [GPAW](https://gpaw.readthedocs.io) calculations with [ASE](https://wiki.fysik.dtu.dk/ase/).
 
 - Build typed parameter dicts for plane-wave and finite-difference calculations
-- Run a GPAW calculation and store the initial geometry, converged geometry, and full SCF history in an ASE database in one call
+- Run a GPAW calculation and store the initial structure, the results (energy, forces, magnetic moments) and the full SCF history in an ASE database in one call
 - Reload a stored calculation (atoms + calculator) from the database by passing the same atoms and parameters — no manual ID tracking required
 
 ## Requirements
@@ -54,7 +54,7 @@ label = get_mode_filestr(params)  # e.g. 'pw_ecut500_8x8x8_gamma'
 Any extra keyword arguments are forwarded to GPAW and stored in the database:
 
 ```python
-params = make_pw_params(500, kpts, nbands=40, charge=0, setups={"Fe": ":d,4.0"})
+params = make_pw_params(500, {"size": (8, 8, 8), "gamma": True}, nbands=40, charge=0, setups={"Fe": ":d,4.0"})
 ```
 
 ### Running and storing a calculation
@@ -81,11 +81,11 @@ atoms_converged, initial_id, converged_id = run_and_store_gpaw_calculation(
 
 This writes two rows to the database:
 - **initial** — starting geometry plus all calculation parameters as key-value pairs
-- **converged** — relaxed geometry plus full SCF history (`scf_energies`, `scf_log10_eigst`, `scf_log10_dens`, `scf_magmoms`)
+- **converged** — the same structure (no relaxation is done) with the calculator's results and the full SCF history (`scf_energies`, `scf_log10_eigst`, `scf_log10_dens`, `scf_magmoms`)
 
 The initial row gains a `converged_id` pointer and the converged row gains an `initial_id` pointer so the pair is always findable from either end.
 
-Log files are written to `gpw_logs/<id>.txt` and restart files to `gpw_files/<id>.gpw`, where `<id>` is the database row ID of the converged entry. Both directories are created automatically.
+Log files are written to `gpw_logs/<id>.txt` and restart files to `gpw_files/<id>.gpw`, where `<id>` is the calculation hash (the `atoms_hash` stored in both rows). Both directories are created automatically.
 
 ### Loading a stored calculation
 
@@ -107,7 +107,7 @@ Identification is hash-based: gpaw-weaver computes a SHA-256 digest over the ato
 - **Different magnetic configurations** (FM vs AFM, collinear vs non-collinear) produce distinct hashes.
 - **Different calculation settings** (XC functional, k-points, cutoff, …) also produce distinct hashes, so multiple calculations on the same atoms are always unambiguous.
 
-If more than one converged row matches the hash, a `ValueError` is raised. Narrow the search with `legacy_gpaw=True/False` or re-run with a more specific `label`.
+If more than one converged row matches the hash, a `ValueError` is raised. Narrow the search with `legacy_gpaw=True/False`, or delete the duplicate with `delete_gpaw_calculation`. A `label` does not help: it is neither hashed nor used for lookup.
 
 #### Non-collinear magnetism
 
@@ -133,9 +133,15 @@ ase db calculations.db label=bcc-Fe
 ```
 
 ```python
-for row in db.select(label="bcc-Fe"):
+import ase.db
+
+db = ase.db.connect("calculations.db")
+for row in db.select("initial_id", label="bcc-Fe"):  # converged rows only
     print(row.id, row.energy, row.data["scf_energies"])
 ```
+
+`list_gpaw_calculations` and `query_gpaw_calculations` filter by structure and/or a subset of
+`calc_params`; `delete_gpaw_calculation` removes a stored initial/converged pair.
 
 ## Running tests
 
@@ -144,7 +150,7 @@ pip install -e ".[dev]"
 pytest
 ```
 
-All calculation tests run against both `legacy_gpaw=True` and `legacy_gpaw=False` automatically.
+Most calculation tests run against both `legacy_gpaw=True` and `legacy_gpaw=False`; tests of implementation-independent logic (lookup, querying, the default database) run once.
 
 ## License
 

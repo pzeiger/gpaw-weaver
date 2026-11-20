@@ -25,7 +25,7 @@ a primary design constraint for all future work here, not an afterthought:
 |---|---|
 | `params.py` | `make_pw_params`, `make_fd_params`, `get_mode_filestr` — pure functions, no I/O |
 | `log.py` | `extract_scf_convergence` — parses GPAW SCF log text |
-| `calculations.py` | `run_and_store_gpaw_calculation`, `load_gpaw_calculation` — DB-backed run/load |
+| `calculations.py` | `run_and_store_gpaw_calculation`, `load_gpaw_calculation`, `query_gpaw_calculations`, `list_gpaw_calculations`, `delete_gpaw_calculation` — DB-backed run/load/query/delete |
 | `__init__.py` | Re-exports the full public API |
 
 All public symbols are importable flat: `from gpaw_weaver import make_pw_params`.
@@ -42,16 +42,16 @@ run_and_store_gpaw_calculation(atoms_initial, calc_params,
                                gpw_dir=..., gpw_logs=...)
 
 load_gpaw_calculation(atoms_initial, calc_params,
-                      db=None, legacy_gpaw=None, gpw_logs=...,
+                      db=None, legacy_gpaw=None, gpw_logs=None,
                       txt='gpaw_log.txt')
 
 query_gpaw_calculations(atoms_initial, db=None, calc_params=None)
 ```
 
 - Both `atoms_initial` and `calc_params` are required positional arguments for `run_and_store_gpaw_calculation`.
-- `atoms_initial` and `calc_params` are positional in `load_gpaw_calculation` — both are hashed to identify the stored entry (`calc_params=None` hashes the structure alone, see below). `txt` is the loaded calculator's logfile, relative to the working directory by default.
+- `atoms_initial` and `calc_params` are positional in `load_gpaw_calculation` — both are hashed to identify the stored entry (`calc_params=None` hashes the structure alone, see below). `txt` is the loaded calculator's logfile, relative to the working directory by default. `gpw_logs` is ignored and deprecated (passing it warns).
 - `label` is an optional argument of `run_and_store_gpaw_calculation`. It is stored in the DB for human readability but is **not** used as a query filter.
-- `query_gpaw_calculations` returns a list of all `AtomsRow` objects whose stored structure (numbers, positions, cell, pbc, magmoms) and calc_params are a superset of the supplied values. Keys absent from the supplied `calc_params` are ignored (partial match). Returns both initial and converged rows.
+- `query_gpaw_calculations` returns a list of all `AtomsRow` objects whose stored structure (numbers, positions, cell, pbc, magmoms) and calc_params are a superset of the supplied values. Keys absent from the supplied `calc_params` are ignored (partial match). With `atoms_initial=None` only `calc_params` filters. Returns both initial and converged rows.
 
 ### Database (`db`)
 
@@ -66,7 +66,7 @@ Every stored entry carries an `atoms_hash` key-value pair computed by `_calculat
 - Because `calc_params` is included in the hash, different structures, phases, magnetic configurations (FM vs AFM, collinear vs non-collinear), and calculation settings (XC functional, k-points, …) all produce distinct hashes automatically.
 - `calc_params` must be passed to `load_gpaw_calculation` to reproduce the correct hash. Omitting it hashes only the atomic structure and atoms magmoms.
 
-`load_gpaw_calculation` raises `LookupError` when no match is found and `ValueError` when more than one converged row matches — narrow with `legacy_gpaw` or store distinct entries under different `label` values.
+`load_gpaw_calculation` raises `LookupError` when no match is found and `ValueError` when more than one converged row matches — narrow with `legacy_gpaw`, or delete the duplicate with `delete_gpaw_calculation` (a `label` is neither hashed nor filtered on).
 
 ### van der Waals wrapper corrections (`vdw` / `vdw_factory`)
 
@@ -80,7 +80,7 @@ Two kinds of vdW correction:
 **Backward compatibility (must be preserved by any future change here).** The `vdw` feature is strictly additive and **fully backward compatible in both directions** — a new gpaw-weaver reads *and* writes an old database with **no migration**:
 - **No schema change.** ASE `db` rows hold arbitrary key-value pairs; old rows simply lack a `vdw` key. Nothing about the table changes.
 - **Hash invariance.** `_calculation_hash` / `_serialize_calc_params` are **untouched**. `vdw` only enters the hash *when the key is present*, so any `calc_params` without a `vdw` key serialises byte-for-byte as before and produces the **identical** `atoms_hash` — old entries are still found by `load_gpaw_calculation` / `query_gpaw_calculations`, and a new run without vdW lands on the same hash an old weaver would have computed.
-- **Inert unless used.** `vdw_factory` defaults to `None` and the wrapping branch runs only when `calc_params.get('vdw')` is set; every pre-existing call site and the entire pre-existing test suite hit exactly the old code path (the internal rename `calc`→`dft_calc` has no external effect).
+- **Inert unless used.** `vdw_factory` defaults to `None` and the wrapping branch runs only when `calc_params.get('vdw')` is set; every pre-existing call site and the entire pre-existing test suite hit exactly the old code path.
 - **Old weaver + new DB** also reads fine: an old weaver ignores the extra `vdw` kv, and non-vdW lookups never collide with vdW rows (distinct hashes). It merely cannot *re-run* a vdW entry (no hook) — never data corruption.
 
 Do not alter `_calculation_hash`, `_serialize_calc_params`, or the "no `vdw` key ⇒ old behaviour" invariant without a deliberate, documented migration — existing databases depend on it.
@@ -117,7 +117,7 @@ Tests live in `tests/`. Run with `pytest` (configured in `pyproject.toml`).
 | `data/scf_logs/` | SCF tables from real GPAW logs (non-magnetic, spin-polarized, noncollinear × `legacy_gpaw=True/False`), used by `test_log.py` |
 | `test_calculations.py` | Integration tests with mocked GPAW |
 
-**All calculation tests are parametrized over `legacy_gpaw=True/False`** — add the `@LEGACY` decorator to any new calculation test.
+**Most calculation tests are parametrized over `legacy_gpaw=True/False`** with the `@LEGACY` decorator — add it to any new test whose behaviour can differ between the two implementations. Tests of implementation-independent logic (load disambiguation, `_resolve_db`, query and list filtering, default DB, the `gpw_logs` deprecation) run once.
 
 `FakeGPAW` (from `helpers.make_fake_gpaw_class`) is an ASE `Calculator` subclass that:
 - Writes fake SCF log content to the `txt` path on `__init__` (matching real GPAW behaviour)

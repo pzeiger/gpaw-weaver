@@ -172,6 +172,17 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
         Database row ID of the initial structure entry.
     converged_id : int
         Database row ID of the converged structure entry.
+
+    Raises
+    ------
+    ValueError
+        *calc_params* has a ``vdw`` descriptor but no *vdw_factory* is given.
+
+    Warns
+    -----
+    UserWarning
+        The log has SCF ``iter:`` rows that ``extract_scf_convergence`` could
+        not parse; the stored SCF history is then empty.
     """
     db = _resolve_db(db)
     db_params = _serialize_calc_params(calc_params)
@@ -354,8 +365,8 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         use the default ``calculations.db`` in the working directory.
     legacy_gpaw : bool or None
         Filter by old (``True``) or new (``False``) GPAW implementation.
-        When ``None`` (default) the value stored in the DB is used, defaulting
-        to ``True`` for rows written before this field was introduced.
+        When ``None`` (default) the value stored in the DB is used; a row
+        without one is loaded with the old implementation.
     gpw_logs : Path or None
         Deprecated and ignored; passing it raises a ``DeprecationWarning``.
     txt : str
@@ -367,6 +378,16 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         Converged atoms with additional info attached.
     calc : GPAW
         Calculator loaded from the GPW file.
+
+    Raises
+    ------
+    LookupError
+        No stored calculation matches.
+    ValueError
+        More than one converged row matches.
+    FileNotFoundError
+        The calculation was stored without a GPW file, or the file recorded
+        in the DB no longer exists.
 
     Notes
     -----
@@ -470,6 +491,13 @@ def delete_gpaw_calculation(atoms_initial=None, calc_params=None,
     -------
     int
         Number of rows deleted.
+
+    Raises
+    ------
+    LookupError
+        No row has the given *row_id*.
+    ValueError
+        Neither *row_id* nor *atoms_initial* is given.
     """
     db = _resolve_db(db)
 
@@ -513,7 +541,8 @@ def list_gpaw_calculations(atoms_initial=None, calc_params=None, db=None,
     Parameters
     ----------
     atoms_initial : ase.Atoms or None
-        Reference structure to filter by. If None, list all calculations.
+        Reference structure to filter by. If None, no structure filtering
+        (with *calc_params* also None, every row is listed).
     calc_params : dict or None
         Subset of calculation parameters to filter by. Only keys present here
         are required to match. If None, no parameter filtering.
