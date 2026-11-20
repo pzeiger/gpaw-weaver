@@ -12,6 +12,7 @@ Scenarios covered (× both legacy_gpaw values):
   - load roundtrip (run then load_gpaw_calculation)
 """
 import json
+import warnings
 from unittest.mock import patch
 
 import pytest
@@ -691,6 +692,8 @@ def test_list_filters_by_calc_params_alone(fe_atom, pw_params, db, work_dirs):
                                     columns=['xc'])
     assert len(listed) == 4  # both structures, initial and converged rows
     assert all(d['xc'] == 'PBE' for d in listed)
+    rows = query_gpaw_calculations(None, db=db, calc_params={'xc': 'PBE'})
+    assert sorted(r.id for r in rows) == sorted(d['id'] for d in listed)
 
 
 def test_load_gpw_logs_is_deprecated(fe_atom, pw_params, db, work_dirs):
@@ -705,3 +708,6 @@ def test_load_gpw_logs_is_deprecated(fe_atom, pw_params, db, work_dirs):
         )
         with pytest.warns(DeprecationWarning, match="ignores gpw_logs"):
             load_gpaw_calculation(fe_atom, pw_params, db=db, gpw_logs=gpw_logs)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            load_gpaw_calculation(fe_atom, pw_params, db=db)

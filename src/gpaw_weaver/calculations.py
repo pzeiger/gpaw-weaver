@@ -419,8 +419,8 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         raise ValueError(
             f'{len(converged_rows)} converged rows match '
             f'atoms_hash={atoms_hash!r}. '
-            'Narrow the search with legacy_gpaw, or delete the duplicate '
-            'with delete_gpaw_calculation.'
+            'Narrow the search with legacy_gpaw, or delete one of the '
+            'duplicates with delete_gpaw_calculation(row_id=...).'
         )
     if not converged_rows:
         raise LookupError(
