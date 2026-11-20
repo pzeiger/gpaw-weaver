@@ -342,7 +342,7 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         ``run_and_store_gpaw_calculation``.  All keys (XC functional,
         k-points, magmoms, …) are included in the hash, so passing the
         correct dict is required to uniquely identify the calculation when
-        multiple runs on the same structure exist.  When ``None`` (default)
+        multiple runs on the same structure exist.  When ``None``,
         only the atomic structure and ``atoms_initial.get_initial_magnetic_moments()``
         contribute to the hash.
     db : ase.db.core.Database or str or Path or None
