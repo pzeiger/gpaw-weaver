@@ -110,7 +110,7 @@ Tests live in `tests/`. Run with `pytest` (configured in `pyproject.toml`).
 | File | What it tests |
 |---|---|
 | `helpers.py` | `make_log()`, `legacy_row()` (one SCF row built with legacy GPAW's format strings) and `make_fake_gpaw_class()` — shared test utilities |
-| `conftest.py` | Shared fixtures: `fe_atom`, `pw_params`, `db`, `work_dirs` |
+| `conftest.py` | Shared fixtures: `fe_atom`, `pw_params`, `db`, `work_dirs`; an autouse fixture runs every test in its `tmp_path` |
 | `test_params.py` | Pure unit tests for `params.py` |
 | `test_log.py` | Log parser for all three magnetism formats, on real GPAW logs (legacy and new implementation) and on legacy rows with blank or overflowing columns |
 | `data/scf_logs/` | SCF tables from real GPAW logs (non-magnetic, spin-polarized, noncollinear × `legacy_gpaw=True/False`), used by `test_log.py` |
