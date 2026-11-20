@@ -274,12 +274,13 @@ def query_gpaw_calculations(atoms_initial, db=None, calc_params=None):
     Parameters present in *calc_params* must match exactly; parameters stored in
     the database but absent from *calc_params* are ignored (partial match).
     The atoms structure (atomic numbers, positions, cell, pbc, and magnetic
-    moments) must also match exactly.
+    moments) must also match exactly, unless *atoms_initial* is ``None``.
 
     Parameters
     ----------
-    atoms_initial : ase.Atoms
-        Reference structure to match against.
+    atoms_initial : ase.Atoms or None
+        Reference structure to match against.  When ``None`` only
+        *calc_params* filters.
     db : ase.db.core.Database or str or Path or None
         Database to search.
     calc_params : dict or None
@@ -296,6 +297,8 @@ def query_gpaw_calculations(atoms_initial, db=None, calc_params=None):
 
     extra = _serialize_calc_params(calc_params) if calc_params is not None else {}
     rows = list(db.select(**extra))
+    if atoms_initial is None:
+        return rows
 
     ref_numbers = atoms_initial.numbers
     ref_positions = np.round(atoms_initial.positions, decimals=6)

@@ -671,3 +671,23 @@ def test_warns_when_scf_rows_are_not_parsed(fe_atom, pw_params, db, work_dirs, l
             gpw_dir=gpw_dir, gpw_logs=gpw_logs,
         )
     assert db.get(id=row_id).data["scf_energies"] == []
+
+
+def test_list_filters_by_calc_params_alone(fe_atom, pw_params, db, work_dirs):
+    """calc_params without atoms_initial filters on the parameters only."""
+    from ase import Atoms
+    gpw_dir, gpw_logs = work_dirs
+    fcc = Atoms("Fe", positions=[(0, 0, 0)], cell=[3.52, 3.52, 3.52], pbc=True)
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content=make_log(n_iters=3))
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW):
+        for atoms in (fe_atom, fcc):
+            for xc in ('PBE', 'LDA'):
+                run_and_store_gpaw_calculation(
+                    atoms, {**pw_params, 'xc': xc}, db=db,
+                    gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+                )
+    listed = list_gpaw_calculations(calc_params={'xc': 'PBE'}, db=db,
+                                    columns=['xc'])
+    assert len(listed) == 4  # both structures, initial and converged rows
+    assert all(d['xc'] == 'PBE' for d in listed)
