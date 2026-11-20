@@ -236,7 +236,8 @@ def run_and_store_gpaw_calculation(atoms_initial, calc_params,
     if not convergence_data and 'iter:' in log_path.read_text():
         warnings.warn(
             f'{log_path} has SCF iteration rows that extract_scf_convergence '
-            'could not parse; the stored SCF history is empty.')
+            'could not parse; the stored SCF history is empty.',
+            stacklevel=2)
 
     # Write DB entries only after successful convergence.
     initial_id = db.write(atoms_initial, **db_params)

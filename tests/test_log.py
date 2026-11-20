@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from gpaw_weaver.log import extract_scf_convergence
-from helpers import make_log
+from helpers import legacy_row, make_log
 
 
 def test_nonmagnetic(tmp_path):
@@ -45,7 +45,7 @@ def test_noncollinear_magnetic(tmp_path):
 
 def test_empty_scf_block(tmp_path):
     log = tmp_path / "calc.txt"
-    log.write_text(" iter  time      total     log10-change:\nConverged\n")
+    log.write_text("SCF iterations\nConverged\n")
 
     assert extract_scf_convergence(log) == []
 
@@ -53,14 +53,28 @@ def test_empty_scf_block(tmp_path):
 def test_stops_at_blank_line(tmp_path):
     """A blank line terminates the SCF block even without 'Converged'."""
     log = tmp_path / "calc.txt"
-    log.write_text(
-        " iter  time      total     log10-change:\n"
-        "iter:   1  10:30:01  -100.0100   -2.000   -3.000\n"
-        "\n"
-        "iter:   2  10:30:02  -100.0200   -3.000   -4.000\n"
-    )
+    log.write_text(legacy_row(1, "-100.0100", "-2.00", "-3.00") + "\n"
+                   + legacy_row(2, "-100.0200", "-3.00", "-4.00"))
     iters = extract_scf_convergence(log)
     assert len(iters) == 1
+
+
+@pytest.mark.parametrize("row, expected", [
+    # eigst blank, dens present
+    (legacy_row(2, "-7.477423", "", "-0.44"), (-7.477423, None, -0.44)),
+    # dens blank, a custom criterion present
+    (legacy_row(2, "-7.477423", "-0.99", "", custom=["-3.10"]),
+     (-7.477423, -0.99, None)),
+    # energy blank (not finite)
+    (legacy_row(2, "", "-0.99", "-0.44"), (None, -0.99, -0.44)),
+], ids=["no-eigst", "no-dens-custom", "no-energy"])
+def test_legacy_blank_columns(tmp_path, row, expected):
+    log = tmp_path / "calc.txt"
+    log.write_text(row)
+    (d,) = extract_scf_convergence(log)
+    for got, e in zip((d["energy"], d["log10_eigst"], d["log10_dens"]),
+                      expected):
+        assert got == (None if e is None else pytest.approx(e))
 
 
 SCF_LOGS = Path(__file__).parent / "data" / "scf_logs"

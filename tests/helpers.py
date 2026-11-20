@@ -5,22 +5,28 @@ import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 
 
+def legacy_row(i, energy="", eigst="", dens="", custom=(), magmom=None):
+    """Return one SCF row as legacy GPAW writes it (gpaw/scf.py), with blank
+    cells for empty strings."""
+    line = f"iter:{i:4d} 10:30:{i:02d} {energy:>12s}  {eigst:>6s}  {dens:>5s}  "
+    for value in custom:
+        line += f"{value:>5s}  "
+    if magmom is not None:
+        line += f"  {magmom}" if "," not in magmom else f" {magmom}"
+    return line.rstrip() + "\n"
+
+
 def make_log(n_iters=3, magmom=None):
-    """Return fake GPAW SCF log text.
+    """Return SCF log text in legacy GPAW's layout.
 
     magmom=None          → non-magnetic (no magmom column)
     magmom='+1.0000'     → collinear
     magmom='+1.000,+0.000,-1.000' → non-collinear
     """
-    lines = [" iter  time      total     log10-change:\n"]
-    for i in range(1, n_iters + 1):
-        e = -100.0 - i * 0.01
-        mag = f"  {magmom}" if magmom is not None else ""
-        lines.append(
-            f"iter:  {i:2d}  10:30:{i:02d}  {e:.4f}   -2.000   -3.000{mag}\n"
-        )
-    lines.append("Converged\n")
-    return "".join(lines)
+    lines = [legacy_row(i, f"{-100.0 - i * 0.01:.4f}", "-2.00", "-3.00",
+                        magmom=magmom)
+             for i in range(1, n_iters + 1)]
+    return "".join(lines) + "\nConverged after 3 iterations.\n"
 
 
 def make_fake_gpaw_class(n_spins=1, log_content=None):

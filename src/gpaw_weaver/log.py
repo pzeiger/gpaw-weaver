@@ -2,7 +2,7 @@ import re
 
 # A row of GPAW's SCF table: ``iter:   2 ...`` (legacy implementation) or
 # ``|iter:   2| ...`` (new implementation, cells separated by ``|``).
-_ROW = re.compile(r'\|?iter:\s*(\d+)\s*\|?\s*\d{2}:\d{2}:\d{2}\s*\|?(.*)')
+_ROW = re.compile(r'\|?iter:\s*(\d+)\|? \d{2}:\d{2}:\d{2}(.*)')
 # GPAW writes the collinear magmom as ``%+.4f`` and the noncollinear one as a
 # ``%+.1f`` triplet; eigst, dens and custom criteria have fewer decimals.
 _MAGMOM = re.compile(
@@ -24,20 +24,17 @@ def _parse_row(rest):
     """Return (energy, log10_eigst, log10_dens, magmom) from the part of a row
     after its time stamp."""
     if '|' in rest:
-        # New layout: fixed cells, an empty cell is a missing value.
-        cells = rest.rstrip().rstrip('|').split('|')
-        energy, eigst, dens = (_number(c) for c in (cells + ['', ''])[:3])
-        magmoms = [c.strip() for c in cells[3:]
-                   if _MAGMOM.fullmatch(c.strip())]
+        # New layout: cells separated by ``|``.
+        cells = rest.rstrip().rstrip('|').split('|')[1:]
+        head, tail = (cells + ['', ''])[:3], cells[3:]
     else:
-        # Legacy layout: blank columns leave no token, so the magmom is
-        # recognised by its format and the remaining numbers are taken in
-        # column order (eigst, then dens).
-        tokens = rest.split()
-        magmoms = [t for t in tokens[1:] if _MAGMOM.fullmatch(t)]
-        others = [_number(t) for t in tokens[1:] if t not in magmoms]
-        energy = _number(tokens[0])
-        eigst, dens = (others + [None, None])[:2]
+        # Legacy layout: fixed-width columns after the time stamp (energy
+        # ``{:>12s}``, eigst ``{:>6s}``, dens ``{:>5s}``, each followed by two
+        # characters), then optional custom criteria and the magmom.
+        head = [rest[0:15], rest[15:23], rest[23:30]]
+        tail = rest[30:].split()
+    energy, eigst, dens = (_number(c) for c in head)
+    magmoms = [c.strip() for c in tail if _MAGMOM.fullmatch(c.strip())]
     magmom = _magmom(magmoms[-1]) if magmoms else None
     return energy, eigst, dens, magmom
 
@@ -46,12 +43,15 @@ def extract_scf_convergence(logfile):
     """Extract SCF iteration data from a GPAW txt log file.
 
     Reads the ``iter:`` rows of the SCF table written by GPAW's legacy
-    implementation (whitespace-separated, no header) and by its new one
+    implementation (fixed-width columns, no header) and by its new one
     (``|``-separated cells), from the first row to the next blank line or
     ``Converged`` line. A value GPAW leaves blank (eigst and dens in the first
     iteration) is ``None``. ``'magmom'`` is a float for collinear
     spin-polarized output, a list of three floats for noncollinear output,
     and ``None`` for non-magnetic calculations.
+
+    Every line shaped like an ``iter:`` row counts, so other ``iter:`` tables
+    GPAW writes (the PZ-SIC localization loop) are not told apart.
     """
     iterations = []
     with open(logfile, 'r') as f:
@@ -59,7 +59,7 @@ def extract_scf_convergence(logfile):
         for line in f:
             if in_scf and (line.strip() == '' or 'Converged' in line):
                 break
-            match = _ROW.match(line.strip())
+            match = _ROW.match(line.rstrip())
             if not match:
                 continue
             in_scf = True
