@@ -494,8 +494,9 @@ def delete_gpaw_calculation(atoms_initial=None, calc_params=None,
 
     Raises
     ------
-    LookupError
-        No row has the given *row_id*.
+    KeyError
+        No row has the given *row_id* (raised by ASE's ``db.get``; a
+        ``LookupError`` subclass).
     ValueError
         Neither *row_id* nor *atoms_initial* is given.
     """

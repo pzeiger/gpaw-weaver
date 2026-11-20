@@ -1,7 +1,8 @@
 """Integration tests for run_and_store_gpaw_calculation / load_gpaw_calculation.
 
-Each test is parametrized over legacy_gpaw=True/False so every scenario runs
-against both GPAW implementations.  The ASE database and file paths are
+Most tests are parametrized over legacy_gpaw=True/False so each scenario runs
+against both GPAW implementations; tests of implementation-independent logic
+run once.  The ASE database and file paths are
 isolated in pytest's tmp_path.
 
 Scenarios covered (× both legacy_gpaw values):

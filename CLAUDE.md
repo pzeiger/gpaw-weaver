@@ -66,7 +66,7 @@ Every stored entry carries an `atoms_hash` key-value pair computed by `_calculat
 - Because `calc_params` is included in the hash, different structures, phases, magnetic configurations (FM vs AFM, collinear vs non-collinear), and calculation settings (XC functional, k-points, …) all produce distinct hashes automatically.
 - `calc_params` must be passed to `load_gpaw_calculation` to reproduce the correct hash. Omitting it hashes only the atomic structure and atoms magmoms.
 
-`load_gpaw_calculation` raises `LookupError` when no match is found and `ValueError` when more than one converged row matches — narrow with `legacy_gpaw`, or delete the duplicate with `delete_gpaw_calculation` (a `label` is neither hashed nor filtered on).
+`load_gpaw_calculation` raises `LookupError` when no match is found and `ValueError` when more than one converged row matches — narrow with `legacy_gpaw`, or delete one of the duplicates with `delete_gpaw_calculation(row_id=...)` (a `label` is neither hashed nor filtered on).
 
 ### van der Waals wrapper corrections (`vdw` / `vdw_factory`)
 
@@ -117,7 +117,7 @@ Tests live in `tests/`. Run with `pytest` (configured in `pyproject.toml`).
 | `data/scf_logs/` | SCF tables from real GPAW logs (non-magnetic, spin-polarized, noncollinear × `legacy_gpaw=True/False`), used by `test_log.py` |
 | `test_calculations.py` | Integration tests with mocked GPAW |
 
-**Most calculation tests are parametrized over `legacy_gpaw=True/False`** with the `@LEGACY` decorator — add it to any new test whose behaviour can differ between the two implementations. Tests of implementation-independent logic (load disambiguation, `_resolve_db`, query and list filtering, default DB, the `gpw_logs` deprecation) run once.
+**Most calculation tests are parametrized over `legacy_gpaw=True/False`** with the `@LEGACY` decorator — add it to any new test whose behaviour can differ between the two implementations. Tests of implementation-independent logic (load disambiguation, `_resolve_db`, query filtering, list filtering by `calc_params` alone, default DB, the `gpw_logs` deprecation) run once.
 
 `FakeGPAW` (from `helpers.make_fake_gpaw_class`) is an ASE `Calculator` subclass that:
 - Writes fake SCF log content to the `txt` path on `__init__` (matching real GPAW behaviour)

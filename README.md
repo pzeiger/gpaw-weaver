@@ -48,7 +48,7 @@ params = make_fd_params(h=0.18, kpts={"size": (4, 4, 4), "gamma": True})
 params = make_fd_params(gpts=(48, 48, 48), kpts={"size": (4, 4, 4)})
 
 # Human-readable string for labelling files or directories
-label = get_mode_filestr(params)  # e.g. 'pw_ecut500_8x8x8_gamma'
+label = get_mode_filestr(params)  # 'fd_gpts48x48x48_4x4x4'
 ```
 
 Any extra keyword arguments are forwarded to GPAW and stored in the database:
@@ -107,7 +107,7 @@ Identification is hash-based: gpaw-weaver computes a SHA-256 digest over the ato
 - **Different magnetic configurations** (FM vs AFM, collinear vs non-collinear) produce distinct hashes.
 - **Different calculation settings** (XC functional, k-points, cutoff, …) also produce distinct hashes, so multiple calculations on the same atoms are always unambiguous.
 
-If more than one converged row matches the hash, a `ValueError` is raised. Narrow the search with `legacy_gpaw=True/False`, or delete the duplicate with `delete_gpaw_calculation`. A `label` does not help: it is neither hashed nor used for lookup.
+If more than one converged row matches the hash, a `ValueError` is raised. Narrow the search with `legacy_gpaw=True/False`, or delete one of the duplicates with `delete_gpaw_calculation(row_id=...)` (called with the atoms and parameters instead, it deletes every matching row). A `label` does not help: it is neither hashed nor used for lookup.
 
 #### Non-collinear magnetism
 
