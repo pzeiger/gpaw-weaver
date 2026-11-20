@@ -23,3 +23,10 @@ def db(tmp_path):
 @pytest.fixture
 def work_dirs(tmp_path):
     return tmp_path / "gpw_files", tmp_path / "gpw_logs"
+
+
+@pytest.fixture(autouse=True)
+def _run_in_tmp_path(tmp_path, monkeypatch):
+    """Run each test in its tmp_path, so default paths relative to the working
+    directory (load_gpaw_calculation's txt='gpaw_log.txt') land there."""
+    monkeypatch.chdir(tmp_path)
