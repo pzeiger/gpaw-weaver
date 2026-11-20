@@ -28,11 +28,18 @@ def _parse_row(rest):
         cells = rest.rstrip().rstrip('|').split('|')[1:]
         head, tail = (cells + ['', ''])[:3], cells[3:]
     else:
-        # Legacy layout: fixed-width columns after the time stamp (energy
-        # ``{:>12s}``, eigst ``{:>6s}``, dens ``{:>5s}``, each followed by two
-        # characters), then optional custom criteria and the magmom.
-        head = [rest[0:15], rest[15:23], rest[23:30]]
-        tail = rest[30:].split()
+        # Legacy layout: after the time stamp and a space, energy
+        # ``{:>12s}``, eigst ``{:>6s}`` and dens ``{:>5s}``, each followed by
+        # ``c `` or two spaces, then optional custom criteria and the magmom.
+        # A value wider than its column pushes the later columns right.
+        head, pos = [], 1
+        for width in (12, 6, 5):
+            end = pos + width
+            while end < len(rest) and rest[end] not in ' c':
+                end += 1
+            head.append(rest[pos:end])
+            pos = end + 2
+        tail = rest[pos:].split()
     energy, eigst, dens = (_number(c) for c in head)
     magmoms = [c.strip() for c in tail if _MAGMOM.fullmatch(c.strip())]
     magmom = _magmom(magmoms[-1]) if magmoms else None

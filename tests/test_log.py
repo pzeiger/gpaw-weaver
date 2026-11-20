@@ -67,7 +67,13 @@ def test_stops_at_blank_line(tmp_path):
      (-7.477423, -0.99, None)),
     # energy blank (not finite)
     (legacy_row(2, "", "-0.99", "-0.44"), (None, -0.99, -0.44)),
-], ids=["no-eigst", "no-dens-custom", "no-energy"])
+    # converged energy wider than its column: GPAW writes the c after it
+    ("iter:   2 10:30:02 -123456.789012c  -3.50  -1.20\n",
+     (-123456.789012, -3.5, -1.2)),
+    # converged dens wider than its column
+    ("iter:   2 10:30:02    -7.477423  -11.20c -11.20c\n",
+     (-7.477423, -11.2, -11.2)),
+], ids=["no-eigst", "no-dens-custom", "no-energy", "wide-energy", "wide-dens"])
 def test_legacy_blank_columns(tmp_path, row, expected):
     log = tmp_path / "calc.txt"
     log.write_text(row)
