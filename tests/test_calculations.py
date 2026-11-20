@@ -657,3 +657,18 @@ def test_vdw_without_factory_raises(fe_atom, pw_params, db, work_dirs, legacy_gp
             run_and_store_gpaw_calculation(
                 fe_atom, vdw_params, db=db, legacy_gpaw=legacy_gpaw,
                 gpw_dir=gpw_dir, gpw_logs=gpw_logs)
+
+
+@LEGACY
+def test_warns_when_scf_rows_are_not_parsed(fe_atom, pw_params, db, work_dirs, legacy_gpaw):
+    """A log with iter: rows the parser cannot read warns instead of storing silently."""
+    gpw_dir, gpw_logs = work_dirs
+    FakeGPAW = make_fake_gpaw_class(n_spins=1, log_content="iter: unreadable\nConverged\n")
+    with patch("gpaw_weaver.calculations.GPAW", FakeGPAW), \
+         patch("gpaw_weaver.calculations._NewGPAW", FakeGPAW), \
+         pytest.warns(UserWarning, match="could not parse"):
+        _, _, row_id = run_and_store_gpaw_calculation(
+            fe_atom, pw_params, db=db, legacy_gpaw=legacy_gpaw,
+            gpw_dir=gpw_dir, gpw_logs=gpw_logs,
+        )
+    assert db.get(id=row_id).data["scf_energies"] == []
