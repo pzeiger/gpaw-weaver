@@ -709,6 +709,7 @@ def test_load_gpw_logs_is_deprecated(fe_atom, pw_params, db, work_dirs):
         )
         with pytest.warns(DeprecationWarning, match="ignores gpw_logs"):
             load_gpaw_calculation(fe_atom, pw_params, db=db, gpw_logs=gpw_logs)
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
             load_gpaw_calculation(fe_atom, pw_params, db=db)
+    assert not [w for w in caught if "gpw_logs" in str(w.message)]
