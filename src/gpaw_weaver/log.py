@@ -56,9 +56,6 @@ def extract_scf_convergence(logfile):
     iteration) is ``None``. ``'magmom'`` is a float for collinear
     spin-polarized output, a list of three floats for noncollinear output,
     and ``None`` for non-magnetic calculations.
-
-    Every line shaped like an ``iter:`` row counts, so other ``iter:`` tables
-    GPAW writes (the PZ-SIC localization loop) are not told apart.
     """
     iterations = []
     with open(logfile, 'r') as f:
