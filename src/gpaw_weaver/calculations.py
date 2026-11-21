@@ -368,7 +368,7 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         When ``None`` (default) the value stored in the DB is used; a row
         without one is loaded with the old implementation.
     gpw_logs : Path or None
-        Deprecated and ignored; passing it raises a ``DeprecationWarning``.
+        Deprecated and ignored; passing it raises a ``FutureWarning``.
     txt : str
         Logfile name for the loaded calculator (default ``gpaw_log.txt``).
 
@@ -405,7 +405,7 @@ def load_gpaw_calculation(atoms_initial, calc_params,
         warnings.warn(
             'load_gpaw_calculation ignores gpw_logs; the argument is '
             'deprecated and will be removed.',
-            DeprecationWarning, stacklevel=2)
+            FutureWarning, stacklevel=2)
     atoms_hash = _calculation_hash(atoms_initial, calc_params)
     extra = {'atoms_hash': atoms_hash}
     if legacy_gpaw is not None:
