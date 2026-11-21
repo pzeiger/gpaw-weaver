@@ -503,10 +503,7 @@ def delete_gpaw_calculation(atoms_initial=None, calc_params=None,
     db = _resolve_db(db)
 
     if row_id is not None:
-        row = db.get(row_id)
-        if row is None:
-            raise LookupError(f'No database row found with id={row_id!r}')
-        rows = [row]
+        rows = [db.get(row_id)]
     else:
         if atoms_initial is None:
             raise ValueError('atoms_initial is required when row_id is not provided')

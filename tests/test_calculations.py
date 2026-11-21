@@ -713,3 +713,9 @@ def test_load_gpw_logs_is_deprecated(fe_atom, pw_params, db, work_dirs):
             warnings.simplefilter("always")
             load_gpaw_calculation(fe_atom, pw_params, db=db)
     assert not [w for w in caught if "gpw_logs" in str(w.message)]
+
+
+def test_delete_unknown_row_id_raises(db):
+    """An unknown row_id raises KeyError (from ASE's db.get)."""
+    with pytest.raises(KeyError):
+        delete_gpaw_calculation(db=db, row_id=999)
